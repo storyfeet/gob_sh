@@ -1,5 +1,5 @@
 use crate::args::Args;
-use crate::statement::Settings;
+use crate::settings::Settings;
 use err_tools::*;
 use std::process::{Child, Command, Stdio};
 

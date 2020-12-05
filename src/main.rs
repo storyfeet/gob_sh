@@ -1,6 +1,7 @@
 mod args;
 mod exec;
 mod parser;
+mod settings;
 mod statement;
 use gobble::traits::*;
 
@@ -10,6 +11,7 @@ use std::io::*;
 //use std::process::*;
 
 fn main() {
+    let mut sets = settings::Settings::new();
     loop {
         print!("> ");
         stdout().flush().ok();
@@ -24,7 +26,7 @@ fn main() {
                 continue;
             }
         };
-        match statement.run(&mut statement::Settings {}) {
+        match statement.run(&mut sets) {
             Ok(true) => println!("\nOK - Success"),
             Ok(false) => println!("\nOK - fail"),
             Err(e) => println!("\nErr - {}", e),

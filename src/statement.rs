@@ -1,5 +1,6 @@
 use crate::exec::Exec;
 //use err_tools::*;
+use crate::settings::Settings;
 use std::process::Stdio;
 
 pub enum Statement {
@@ -16,6 +17,3 @@ impl Statement {
         }
     }
 }
-
-/// Some options for statements to run, or persistent data
-pub struct Settings {}
