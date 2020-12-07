@@ -3,11 +3,12 @@ use crate::settings::Settings;
 use err_tools::*;
 use std::process::{Child, Command, Stdio};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum EJoin {
     Pipe,
     PipeErr,
 }
+#[derive(Clone, Debug)]
 pub enum Exec {
     Join(EJoin, Box<Exec>, Box<Exec>),
     Simple(String, Args),

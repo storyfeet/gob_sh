@@ -19,7 +19,7 @@ fn main() {
         let mut input = String::new();
         stdin().read_line(&mut input).unwrap();
 
-        let statement = match parser::Statement.parse_s(&input) {
+        let statement = match parser::FullStatement.parse_s(&input) {
             Ok(v) => v,
             Err(e) => {
                 println!("{}", e);

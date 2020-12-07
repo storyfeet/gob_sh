@@ -3,11 +3,19 @@ use crate::exec::{EJoin, Exec};
 use crate::statement::Statement as Stt;
 use gobble::*;
 
+parser! {(End->())
+    or_ig!("\n;".one(),EOI)
+}
+
 parser! {(ExJoin ->EJoin)
     or!(
         "|".asv(EJoin::Pipe),
         "^|".asv(EJoin::PipeErr),
     )
+}
+
+parser! {(FullStatement->Stt)
+    first(Statement,End)
 }
 
 parser! {(Statement->Stt)
@@ -30,18 +38,20 @@ parser! {(Args -> crate::args::Args)
 }
 
 parser! { (QuotedLitString->String)
-    strings_plus_until(or!(
+    strings_plus(or!(
             not("${}()[]\\\"").plus(),
             "\\n".map(|_|"\n".to_string()),
             "\\t".map(|_|"\t".to_string()),
-    ),"\"").map(|(a,_)|a)
+             ("\\",Any.one()).map(|(_,c)| {let mut s=String::new(); s.push(c);s}),
+    ))
 }
 
 parser! { (LitString->String)
     strings_plus(or!(
-            not("${}()[]\\\" ").plus(),
+            not("${}()[]\\\" \n\t").plus(),
             "\\n".map(|_|"\n".to_string()),
             "\\t".map(|_|"\t".to_string()),
+             ("\\",Any.one()).map(|(_,c)| {let mut s=String::new(); s.push(c);s}),
     ))
 }
 
@@ -50,26 +60,31 @@ parser! {(StringPart->Arg)
         ("$",(Alpha,NumDigit,"_").plus()).map(|(_,s)|Arg::Var(s)),
         ("${",ws__((Alpha,NumDigit,"_").plus()),"}").map(|(_,s,_)|Arg::Var(s)),
         ("(",ws__(ExecLeft),")").map(|(_,e,_)|Arg::Command(e)),
-        "\\n".map(|_| Arg::StringLit("\n".to_string())),
-        "\\t".map(|_| Arg::StringLit("\t".to_string())),
-        ("\\",Any.one()).map(|(_,c)| {let mut s=String::new(); s.push(c);Arg::StringLit(s)}),
+        LitString.map(|s|Arg::StringLit(s)),
     )
+}
 
+parser! {(QuotedStringPart->Arg)
+    or!(
+        ("$",(Alpha,NumDigit,"_").plus()).map(|(_,s)|Arg::Var(s)),
+        ("${",ws__((Alpha,NumDigit,"_").plus()),"}").map(|(_,s,_)|Arg::Var(s)),
+        ("(",ws__(ExecLeft),")").map(|(_,e,_)|Arg::Command(e)),
+        QuotedLitString.map(|s|Arg::StringLit(s)),
+    )
 }
 
 parser! { (ArgP->Arg)
     or!(
         r_hash.map(|s|Arg::RawString(s) ) ,
         plus(StringPart).map(|v| match v.len(){
-            1 => Arg::StringLit(v[0]),
+            1 => v[0].clone(),
             _=> Arg::StringExpr(v),
         }),
-        ("\"",star!(or!(StringPart,"_".map(_,s_
-        string(star(or_ig!(
-                    (Alpha,NumDigit,"?*_.-/").iplus(),
-                    ("[",Any.until("]")),
-               ))).map(|s|Arg::StringLit(s)),
-        common::Quoted.map(|s| Arg::StringLit(s)),
+        ("\"",star(QuotedStringPart),"\"").map(|(_,v,_)| match v.len(){
+            0=> Arg::StringLit(String::new()),
+            1 => v[0].clone(),
+            _=> Arg::StringExpr(v),
+        }),
     )
 }
 

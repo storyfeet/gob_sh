@@ -4,6 +4,7 @@ use err_tools::*;
 use std::io::Read;
 use std::process::Stdio;
 
+#[derive(Clone, Debug)]
 pub struct Args(pub Vec<Arg>);
 
 fn try_glob(s: &str, args: &mut Vec<String>) {
@@ -45,6 +46,7 @@ impl Args {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum Arg {
     RawString(String),
     StringLit(String),
@@ -71,7 +73,8 @@ impl Arg {
                 let mut buf = String::new();
                 ch.stdout
                     .e_str("No Return Buffer")?
-                    .read_to_string(&mut buf);
+                    .read_to_string(&mut buf)
+                    .ok();
 
                 //ch.wait(); TODO work out if this is needed
                 Ok(Data::RawStr(buf))
