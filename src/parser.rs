@@ -1,5 +1,6 @@
 use crate::args::Arg;
-use crate::exec::{Channel, Connection, Exec, Target};
+use crate::channel::Channel;
+use crate::exec::{Connection, Exec};
 use crate::statement::Statement as Stt;
 use gobble::*;
 
@@ -9,8 +10,10 @@ parser! {(End->())
 
 parser! {(ExChannel ->Channel)
     or!(
+        "^^".asv(Channel::Both),
         "^".asv(Channel::StdErr),
         "".asv(Channel::StdOut),
+
     )
 }
 
@@ -19,17 +22,22 @@ parser! {(FullStatement->Stt)
 }
 
 parser! {(Statement->Stt)
-    PExec.map(|a|Stt::Exec(a))
-}
-
-parser! {(ExTarget->Target)
-    or! (
-        ("|",ws_(PExec)).map(|(_,e)|Target::Exec(Box::new(e))),
+    or!(
+        (keyword("let"),plus(ws_(common::Ident)),ws_("="),Args).map(|(_,ids,_,args)|Stt::Let(ids,args)),
+        (PExec,ws_(maybe((ExChannel,">",exists(">"),ws_(ArgP))))).map(|(exec,wop)|{
+            match wop {
+                Some((chan,_,append,filename))=>Stt::Write{exec,chan,append,filename},
+                None=>Stt::Exec(exec),
+            }})
     )
 }
 
+parser! {(ExTarget->Exec)
+     ("|",ws_(PExec)).map(|(_,e)|e),
+}
+
 parser! {(PConnection->Connection)
-    (ExChannel,ExTarget).map(|(chan,target)|Connection{chan,target})
+    (ExChannel,ExTarget).map(|(chan,target)|Connection{chan,target:Box::new(target)})
 }
 
 parser! {(PExec->Exec)
@@ -51,7 +59,7 @@ parser! { (QuotedLitString->String)
 
 parser! { (LitString->String)
     strings_plus(or!(
-            not("$|^{}()[]\\\" \n\t").plus(),
+            not("$|^{}()[]\\\" \n\t<>").plus(),
             "\\n".map(|_|"\n".to_string()),
             "\\t".map(|_|"\t".to_string()),
              ("\\",Any.one()).map(|(_,c)| {let mut s=String::new(); s.push(c);s}),
@@ -60,9 +68,10 @@ parser! { (LitString->String)
 
 parser! {(StringPart->Arg)
     or!(
-        ("$",(Alpha,NumDigit,"_").plus()).map(|(_,s)|Arg::Var(s)),
+        ("$[",ws__(PExec),"]").map(|(_,e,_)|Arg::ArrCommand(e)),
+        ("$(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
         ("${",ws__((Alpha,NumDigit,"_").plus()),"}").map(|(_,s,_)|Arg::Var(s)),
-        ("(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
+        ("$",(Alpha,NumDigit,"_").plus()).map(|(_,s)|Arg::Var(s)),
         LitString.map(|s|Arg::StringLit(s)),
     )
 }

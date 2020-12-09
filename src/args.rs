@@ -53,6 +53,7 @@ pub enum Arg {
     StringExpr(Vec<Arg>),
     Var(String),
     Command(Exec),
+    ArrCommand(Exec),
 }
 
 impl Arg {
@@ -78,6 +79,22 @@ impl Arg {
 
                 //ch.wait(); TODO work out if this is needed
                 Ok(Data::RawStr(buf))
+            }
+            Arg::ArrCommand(ex) => {
+                let ch = ex.run(sets, Stdio::null(), Stdio::piped(), Stdio::inherit())?;
+                let mut buf = String::new();
+                ch.stdout
+                    .e_str("No Return Buffer")?
+                    .read_to_string(&mut buf)
+                    .ok();
+
+                let v: Vec<Data> = buf
+                    .split(|c| " \r\t\n".contains(c))
+                    .filter(|a| a.len() > 0)
+                    .map(|a| Data::RawStr(a.to_string()))
+                    .collect();
+                //ch.wait(); TODO work out if this is needed
+                Ok(Data::List(v))
             }
         }
     }

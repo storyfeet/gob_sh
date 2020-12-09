@@ -1,4 +1,5 @@
 mod args;
+mod channel;
 mod exec;
 mod parser;
 mod settings;

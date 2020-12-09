@@ -1,24 +1,13 @@
 use crate::args::Args;
+use crate::channel::*;
 use crate::settings::Settings;
 use err_tools::*;
 use std::process::{Child, Command, Stdio};
 
 #[derive(Clone, Debug)]
-pub enum Channel {
-    StdOut,
-    StdErr,
-}
-
-#[derive(Clone, Debug)]
-pub enum Target {
-    Exec(Box<Exec>),
-    Append(String),
-    Write(String),
-}
-#[derive(Clone, Debug)]
 pub struct Connection {
     pub chan: Channel,
-    pub target: Target,
+    pub target: Box<Exec>,
 }
 
 impl Connection {
@@ -29,15 +18,11 @@ impl Connection {
         out: Stdio,
         err: Stdio,
     ) -> anyhow::Result<Child> {
-        let input = match self.chan {
-            Channel::StdOut => Stdio::from(ch.stdout.e_str("No Out Channel")?),
-            Channel::StdErr => Stdio::from(ch.stderr.e_str("No Err Channel")?),
-        };
+        let iread = self
+            .chan
+            .as_reader(ch.stdout.e_str("No output")?, ch.stderr.e_str("No errput")?);
 
-        match &self.target {
-            Target::Exec(e) => e.run(sets, input, out, err),
-            _ => unimplemented! {},
-        }
+        self.target.run(sets, iread.to_stdio(), out, err)
     }
 }
 
@@ -47,6 +32,7 @@ pub struct Exec {
     pub args: Args,
     pub conn: Option<Connection>,
 }
+
 impl Exec {
     pub fn run(
         &self,
