@@ -1,7 +1,10 @@
 //! Some options for statements to run, or persistent data
 
+use crate::RT;
 use std::collections::BTreeMap;
 use std::fmt::{self, Display};
+use std::io::Write;
+use termion::{clear, cursor, cursor::DetectCursorPos};
 
 #[derive(Clone, Debug)]
 pub enum Data {
@@ -18,12 +21,12 @@ impl Display for Data {
             Data::Bool(false) => write!(f, "false"),
             Data::Str(s) | Data::RawStr(s) => write!(f, "{}", s),
             Data::List(l) => {
-                write!(f, "[ ");
+                write!(f, "[ ").ok();
                 for (n, v) in l.iter().enumerate() {
                     if n > 0 {
-                        write!(f, ", ");
+                        write!(f, ", ").ok();
                     }
-                    write!(f, "{}", v);
+                    write!(f, "{}", v).ok();
                 }
                 write!(f, "]")
             }
@@ -45,6 +48,7 @@ impl Data {
 }
 
 pub struct Settings {
+    pub line: String,
     scopes: Vec<BTreeMap<String, Data>>,
 }
 
@@ -52,8 +56,27 @@ impl Settings {
     /// Invariants : Settings must always have at least one layer in scope.
     pub fn new() -> Settings {
         Settings {
+            line: String::new(),
             scopes: vec![BTreeMap::new()],
         }
+    }
+
+    pub fn print_line(&mut self, rt: &mut RT) {
+        let (t_width, _) = termion::terminal_size().unwrap_or((50, 50));
+        let lines: Vec<&str> = self.line.split("\n").collect();
+        for a in 
+        print!(
+            "{}\r{}{}",
+            cursor::Restore,
+            clear::AfterCursor,
+            cursor::Save
+        );
+        let mut pre = "> ";
+        for a in self.line.split("\n") {
+            print!("{}{}", pre, a);
+            pre = "\n\r... ";
+        }
+        rt.flush().ok();
     }
 
     pub fn set(&mut self, k: String, v: Data) {

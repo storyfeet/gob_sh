@@ -2,7 +2,7 @@ use crate::args::Arg;
 use crate::channel::Channel;
 use crate::exec::{Connection, Exec};
 use crate::statement::Statement as Stt;
-use gobble::*;
+use bogobble::*;
 
 parser! {(End->())
     ws_(or_ig!("\n;".one(),EOI))
@@ -78,8 +78,8 @@ parser! {(StringPart->Arg)
 
 parser! {(QuotedStringPart->Arg)
     or!(
-        ("$",(Alpha,NumDigit,"_").plus()).map(|(_,s)|Arg::Var(s)),
-        ("${",ws__((Alpha,NumDigit,"_").plus()),"}").map(|(_,s,_)|Arg::Var(s)),
+        ("$",(Alpha,NumDigit,"_").plus()).map(|(_,s)|Arg::Var(s.to_string())),
+        ("${",ws__((Alpha,NumDigit,"_").plus()),"}").map(|(_,s,_)|Arg::Var(s.to_string())),
         ("(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
         QuotedLitString.map(|s|Arg::StringLit(s)),
     )
@@ -101,9 +101,9 @@ parser! { (ArgP->Arg)
 }
 
 /// Raw strings eg: r###" Any \ "##  wierd \ string "###
-pub fn r_hash<'a>(it: &LCChars<'a>) -> ParseRes<'a, String> {
+pub fn r_hash<'a>(it: &PIter<'a>) -> ParseRes<'a, String> {
     let (it, (_, v, _), _) = ("r", "#".star(), "\"").parse(it)?;
     Any.until(("\"", "#".exact(v.len())))
-        .map(|(s, _)| s)
+        .map(|(s, _)| s.to_string())
         .parse(&it)
 }

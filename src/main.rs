@@ -4,15 +4,60 @@ mod exec;
 mod parser;
 mod settings;
 mod statement;
-use gobble::traits::*;
+mod ui;
+use bogobble::traits::*;
 
 //use std::env;
+use settings::Settings;
 use std::io::*;
-//use std::path::Path;
-//use std::process::*;
+use termion::event::Event;
+use termion::event::Key;
+use termion::input::TermReadEventsAndRaw;
+use termion::raw::{IntoRawMode, RawTerminal};
 
-fn main() {
-    let mut sets = settings::Settings::new();
+type RT = RawTerminal<Stdout>;
+
+#[derive(Debug, Clone)]
+pub enum Action {
+    Cont,
+    Quit,
+}
+
+pub fn do_key(k: Key, sets: &mut Settings, rt: &mut RT) -> anyhow::Result<Action> {
+    match k {
+        Key::Esc => return Ok(Action::Quit),
+        Key::Char(c) => sets.line.push(c),
+        _ => {}
+    }
+
+    sets.print_line(rt);
+    Ok(Action::Cont)
+}
+
+pub fn do_event(e: Event, sets: &mut Settings, rt: &mut RT) -> anyhow::Result<Action> {
+    match e {
+        Event::Key(k) => return do_key(k, sets, rt),
+        e => println!("Event {:?}", e),
+    }
+    Ok(Action::Cont)
+}
+
+fn main() -> anyhow::Result<()> {
+    let mut sets = Settings::new();
+
+    let mut rt = stdout().into_raw_mode()?;
+    print!("{}> ", termion::cursor::Save);
+    rt.flush()?;
+
+    for raw_e in stdin().events_and_raw() {
+        let (e, _) = raw_e?;
+        match do_event(e, &mut sets, &mut rt) {
+            Ok(Action::Quit) => return Ok(()),
+            Ok(Action::Cont) => {}
+            v => print!("Fail : {:?}", v),
+        }
+    }
+
     loop {
         print!("> ");
         stdout().flush().ok();
