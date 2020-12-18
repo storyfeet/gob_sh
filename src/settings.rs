@@ -1,10 +1,11 @@
 //! Some options for statements to run, or persistent data
 
+use crate::ui;
 use crate::RT;
 use std::collections::BTreeMap;
 use std::fmt::{self, Display};
-use std::io::Write;
-use termion::{clear, cursor, cursor::DetectCursorPos};
+//use std::io::Write;
+//use termion::{clear, cursor, cursor::DetectCursorPos};
 
 #[derive(Clone, Debug)]
 pub enum Data {
@@ -61,22 +62,22 @@ impl Settings {
         }
     }
 
-    pub fn print_line(&mut self, rt: &mut RT) {
-        let (t_width, _) = termion::terminal_size().unwrap_or((50, 50));
-        let lines: Vec<&str> = self.line.split("\n").collect();
-        for a in 
-        print!(
-            "{}\r{}{}",
-            cursor::Restore,
-            clear::AfterCursor,
-            cursor::Save
-        );
-        let mut pre = "> ";
-        for a in self.line.split("\n") {
-            print!("{}{}", pre, a);
-            pre = "\n\r... ";
-        }
-        rt.flush().ok();
+    pub fn add_char(&mut self, c: char, rt: &mut RT) {
+        ui::unprint(&self.line, rt);
+        self.line.push(c);
+        ui::print(&self.line, rt);
+    }
+
+    pub fn del_char(&mut self, rt: &mut RT) {
+        ui::unprint(&self.line, rt);
+        ui::del_char(&mut self.line);
+        ui::print(&self.line, rt);
+    }
+
+    pub fn del_line(&mut self, rt: &mut RT) {
+        ui::unprint(&self.line, rt);
+        ui::del_line(&mut self.line);
+        ui::print(&self.line, rt);
     }
 
     pub fn set(&mut self, k: String, v: Data) {

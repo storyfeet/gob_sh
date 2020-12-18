@@ -50,7 +50,7 @@ parser! {(Args -> crate::args::Args)
 
 parser! { (QuotedLitString->String)
     strings_plus(or!(
-            not("${}()[]\\\"").plus(),
+            string(not("${}()[]\\\"").plus()),
             "\\n".map(|_|"\n".to_string()),
             "\\t".map(|_|"\t".to_string()),
              ("\\",Any.one()).map(|(_,c)| {let mut s=String::new(); s.push(c);s}),
@@ -59,7 +59,7 @@ parser! { (QuotedLitString->String)
 
 parser! { (LitString->String)
     strings_plus(or!(
-            not("$|^{}()[]\\\" \n\t<>").plus(),
+            string(not("$|^{}()[]\\\" \n\t<>").plus()),
             "\\n".map(|_|"\n".to_string()),
             "\\t".map(|_|"\t".to_string()),
              ("\\",Any.one()).map(|(_,c)| {let mut s=String::new(); s.push(c);s}),
@@ -70,8 +70,8 @@ parser! {(StringPart->Arg)
     or!(
         ("$[",ws__(PExec),"]").map(|(_,e,_)|Arg::ArrCommand(e)),
         ("$(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
-        ("${",ws__((Alpha,NumDigit,"_").plus()),"}").map(|(_,s,_)|Arg::Var(s)),
-        ("$",(Alpha,NumDigit,"_").plus()).map(|(_,s)|Arg::Var(s)),
+        ("${",ws__(string((Alpha,NumDigit,"_").plus())),"}").map(|(_,s,_)|Arg::Var(s)),
+        ("$",string((Alpha,NumDigit,"_").plus())).map(|(_,s)|Arg::Var(s)),
         LitString.map(|s|Arg::StringLit(s)),
     )
 }
@@ -79,7 +79,7 @@ parser! {(StringPart->Arg)
 parser! {(QuotedStringPart->Arg)
     or!(
         ("$",(Alpha,NumDigit,"_").plus()).map(|(_,s)|Arg::Var(s.to_string())),
-        ("${",ws__((Alpha,NumDigit,"_").plus()),"}").map(|(_,s,_)|Arg::Var(s.to_string())),
+        ("${",ws__(string((Alpha,NumDigit,"_").plus())),"}").map(|(_,s,_)|Arg::Var(s.to_string())),
         ("(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
         QuotedLitString.map(|s|Arg::StringLit(s)),
     )

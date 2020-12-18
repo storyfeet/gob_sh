@@ -2,6 +2,7 @@ mod args;
 mod channel;
 mod exec;
 mod parser;
+mod partial;
 mod settings;
 mod statement;
 mod ui;
@@ -26,11 +27,12 @@ pub enum Action {
 pub fn do_key(k: Key, sets: &mut Settings, rt: &mut RT) -> anyhow::Result<Action> {
     match k {
         Key::Esc => return Ok(Action::Quit),
-        Key::Char(c) => sets.line.push(c),
-        _ => {}
+        Key::Char(c) => sets.add_char(c, rt),
+        Key::Backspace => sets.del_char(rt),
+        Key::Ctrl('h') => sets.del_line(rt),
+        e => println!("{:?}", e),
     }
 
-    sets.print_line(rt);
     Ok(Action::Cont)
 }
 
