@@ -2,6 +2,8 @@ use crate::parser::r_hash;
 use bogobble::partial::*;
 use bogobble::*;
 
+type PT = PosTree<Item>;
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Item {
     Keyword,
@@ -12,7 +14,11 @@ pub enum Item {
     Exec,
     Lit,
     Command,
+    Var,
     Arg,
+    Args,
+    String,
+    Quoted,
     Err,
 }
 
@@ -34,16 +40,16 @@ parser! {(End->())
     ws_(or_ig!("\n;".one(),EOI))
 }
 
-parser! {(ExChannel -> PosTree<Item>)
+parser! {(ExChannel -> PT)
     sym(or!( "^^", "^", ""))
 }
 
-parser! {(FullStatement->PosTree<Item>)
+parser! {(FullStatement->PT)
     //TODO
     tpos(first(Statement,End).asv(true),Item::Statement)
 }
 
-parser! {(Statement->PosTree<Item>)
+parser! {(Statement->PT)
     or!(
         p_list!((Item::Statement) kw("let"),tpos(plus(ws_(common::Ident)),Item::Ident),sym(ws_("=")),Args),
         p_list!((Item::Statement) PExec,ws_(pmaybe(
@@ -53,61 +59,56 @@ parser! {(Statement->PosTree<Item>)
     )
 }
 
-parser! {(ExTarget->PosTree<Item>)
+parser! {(ExTarget->PT)
      p_list!((Item::Exec) sym("|"),ws_(PExec))
 }
 
-parser! {(PConnection->PosTree<Item>)
+parser! {(PConnection->PT)
     p_list!((Item::Exec) ExChannel,ExTarget)
 }
 
-parser! {(PExec->PosTree<Item>)
+parser! {(PExec->PT)
     p_list!((Item::Exec) tpos(common::Ident,Item::Command) , Args,pmaybe(ws_(PConnection),Item::Exec))
 }
 
-parser! {(Args -> PosTree<Item>)
-    //TODO add star and plus to partials
-    tpos(star(ws_(ArgP))
+parser! {(Args -> PT)
+    vpos(star(ws_(ArgP)),Item::Args)
 }
 
-parser! { (QuotedLitString->String)
-    strings_plus(or!(
-            string(not("${}()[]\\\"").plus()),
-            "\\n".map(|_|"\n".to_string()),
-            "\\t".map(|_|"\t".to_string()),
-             ("\\",Any.one()).map(|(_,c)| {let mut s=String::new(); s.push(c);s}),
-    ))
+parser! { (QuotedLitString->PT)
+    tpos(plus(or_ig!(
+            not("${}()[]\\\"").iplus(),
+             ("\\",Any.one()),
+    )),Item::Quoted)
 }
 
-parser! { (LitString->String)
-    strings_plus(or!(
-            string(not("$|^{}()[]\\\" \n\t<>").plus()),
-            "\\n".map(|_|"\n".to_string()),
-            "\\t".map(|_|"\t".to_string()),
-             ("\\",Any.one()).map(|(_,c)| {let mut s=String::new(); s.push(c);s}),
-    ))
+parser! { (LitString->PT)
+    tpos(plus(or_ig!(
+            not("$|^{}()[]\\\" \n\t<>").plus(),
+             ("\\",Any.one()),
+    )),Item::String)
 }
 
-parser! {(StringPart->Arg)
+parser! {(StringPart->PT)
     or!(
-        ("$[",ws__(PExec),"]").map(|(_,e,_)|Arg::ArrCommand(e)),
-        ("$(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
-        ("${",ws__(string((Alpha,NumDigit,"_").plus())),"}").map(|(_,s,_)|Arg::Var(s)),
-        ("$",string((Alpha,NumDigit,"_").plus())).map(|(_,s)|Arg::Var(s)),
-        LitString.map(|s|Arg::StringLit(s)),
+        p_list!((Item::Command) sym("$["),ws__(PExec),sym("]")),
+        p_list!((Item::Command) sym("$("),ws__(PExec),sym(")")),
+        p_list!((Item::Var) sym("${"),ws__(tpos((Alpha,NumDigit,"_").plus(),Item::Var)),sym("}")),
+        p_list!((Item::Var) sym("$"),tpos((Alpha,NumDigit,"_").plus(),Item::Var)),
+        LitString,
     )
 }
 
-parser! {(QuotedStringPart->Arg)
+parser! {(QuotedStringPart->PT)
     or!(
-        ("$",(Alpha,NumDigit,"_").plus()).map(|(_,s)|Arg::Var(s.to_string())),
+        p_list!((Item::Command) (sym("$"),tpos(Alpha,NumDigit,"_").plus()).map(|(_,s)|Arg::Var(s.to_string())),
         ("${",ws__(string((Alpha,NumDigit,"_").plus())),"}").map(|(_,s,_)|Arg::Var(s.to_string())),
         ("(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
         QuotedLitString.map(|s|Arg::StringLit(s)),
     )
 }
 
-parser! { (ArgP->PosTree<Item>)
+parser! { (ArgP->PT)
     or!(
         r_hash.map(|s|Arg::RawString(s) ) ,
         plus(StringPart).map(|v| match v.len(){
