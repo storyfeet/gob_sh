@@ -1,4 +1,3 @@
-use crate::parser::r_hash;
 use bogobble::partial::*;
 use bogobble::*;
 
@@ -101,24 +100,35 @@ parser! {(StringPart->PT)
 
 parser! {(QuotedStringPart->PT)
     or!(
-        p_list!((Item::Command) (sym("$"),tpos(Alpha,NumDigit,"_").plus()).map(|(_,s)|Arg::Var(s.to_string())),
-        ("${",ws__(string((Alpha,NumDigit,"_").plus())),"}").map(|(_,s,_)|Arg::Var(s.to_string())),
-        ("(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
-        QuotedLitString.map(|s|Arg::StringLit(s)),
+        p_list!((Item::Command) sym("$"),tpos((Alpha,NumDigit,"_").plus(),Item::Command)),
+        p_list!((Item::Var) sym("${"),ws__(tpos((Alpha,NumDigit,"_").plus(),Item::Var)),sym("}")),
+        p_list!((Item::Command) sym("("),ws__(PExec),sym(")")),
+        QuotedLitString,
     )
 }
 
 parser! { (ArgP->PT)
     or!(
-        r_hash.map(|s|Arg::RawString(s) ) ,
-        plus(StringPart).map(|v| match v.len(){
-            1 => v[0].clone(),
-            _=> Arg::StringExpr(v),
-        }),
+        p_r_hash,
+        vpos(plus(StringPart),Item::Arg),
         ("\"",star(QuotedStringPart),"\"").map(|(_,v,_)| match v.len(){
             0=> Arg::StringLit(String::new()),
             1 => v[0].clone(),
             _=> Arg::StringExpr(v),
         }),
     )
+}
+
+/// partial Raw strings eg: r###" Any \ "##  wierd \ string "###
+pub fn p_r_hash<'a>(it: &PIter<'a>) -> ParseRes<'a, PT> {
+    let (it2, pt, e) = p_list!((Item::String) sym("r"), sym("#".star()), sym("\"")).parse(it)?;
+    let hlen = match pt.children.get(1) {
+        Some(ch) => ch.str_len(it.orig_str()),
+        None => return EOI.parse(&it2).map_v(|_| pt).map_err(|e2| e.unwrap_or(e2)),
+    };
+
+    Any.until(sym(("\"", "#".exact(hlen))))
+        .parse(&it2)
+        .map_v(|(q, h)| pt.push(PosTree::new().push(h)))
+    }
 }
