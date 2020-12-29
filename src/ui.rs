@@ -1,4 +1,5 @@
 use crate::RT;
+use bogobble::traits::*;
 use std::io::Write;
 use termion::*;
 
@@ -59,8 +60,20 @@ pub fn unprint(s: &str, _rt: &mut RT) {
 
 pub fn print(s: &str, rt: &mut RT) {
     //let lines: Vec<&str> = self.line.split("\n").collect();
+    //parse first
+    let s2 = match crate::partial::Statement.parse_s(s) {
+        Ok(v) => bogobble::partial::mark_list::mark_str(&v, s).expect("Marking out of String"),
+        Err(e) => format!(
+            "{}{}{}{}",
+            color::Fg(color::LightRed),
+            s,
+            color::Fg(color::Reset),
+            e,
+        ),
+    };
+    assert!(s2.len() >= s.len(), "Marked string should be longer");
     let mut pre = "> ";
-    for a in s.split("\n") {
+    for a in s2.split("\n") {
         print!("{}{}", pre, a);
         pre = "\n\r... ";
     }
