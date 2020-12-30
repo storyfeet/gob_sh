@@ -27,6 +27,25 @@ pub enum Action {
 pub fn do_key(k: Key, sets: &mut Settings, rt: &mut RT) -> anyhow::Result<Action> {
     match k {
         Key::Esc => return Ok(Action::Quit),
+        Key::Char('\n') => match parser::Lines.parse_s(&sets.line) {
+            Ok(v) => {
+                rt.suspend_raw_mode().ok();
+                print!("\n\r");
+                rt.flush().ok();
+                for s in v {
+                    match s.run(sets) {
+                        Ok(true) => print!("\n\rOK - Success\n\r"),
+                        Ok(false) => print!("\n\rOK - fail\n\r"),
+                        Err(e) => print!("\n\rErr - {}\n\r", e),
+                    }
+                }
+                sets.line.clear();
+                ui::print("", rt);
+                rt.activate_raw_mode().ok();
+            }
+            Err(_) => sets.add_char('\n', rt),
+        },
+
         Key::Char(c) => sets.add_char(c, rt),
         Key::Backspace => sets.del_char(rt),
         Key::Ctrl('h') => sets.del_line(rt),
@@ -39,7 +58,7 @@ pub fn do_key(k: Key, sets: &mut Settings, rt: &mut RT) -> anyhow::Result<Action
 pub fn do_event(e: Event, sets: &mut Settings, rt: &mut RT) -> anyhow::Result<Action> {
     match e {
         Event::Key(k) => return do_key(k, sets, rt),
-        e => println!("Event {:?}", e),
+        e => print!("Event {:?}\n\r", e),
     }
     Ok(Action::Cont)
 }

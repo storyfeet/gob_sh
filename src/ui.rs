@@ -61,8 +61,13 @@ pub fn unprint(s: &str, _rt: &mut RT) {
 pub fn print(s: &str, rt: &mut RT) {
     //let lines: Vec<&str> = self.line.split("\n").collect();
     //parse first
-    let s2 = match crate::partial::Statement.parse_s(s) {
-        Ok(v) => bogobble::partial::mark_list::mark_str(&v, s).expect("Marking out of String"),
+    let s2 = match crate::partial::Lines.parse_s(s) {
+        Ok(v) => {
+            let mut s =
+                bogobble::partial::mark_list::mark_str(&v, s).expect("Marking out of String");
+            s.push_str(&color::Fg(color::Reset).to_string());
+            s
+        }
         Err(e) => format!(
             "{}{}{}{}",
             color::Fg(color::LightRed),

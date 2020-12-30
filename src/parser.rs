@@ -17,8 +17,12 @@ parser! {(ExChannel ->Channel)
     )
 }
 
+parser! {(Lines -> Vec<Stt>)
+    plus(FullStatement)
+}
+
 parser! {(FullStatement->Stt)
-    first(Statement,End)
+    first(Statement,bogobble::partial::p_plus(End))
 }
 
 parser! {(Statement->Stt)
@@ -78,9 +82,10 @@ parser! {(StringPart->Arg)
 
 parser! {(QuotedStringPart->Arg)
     or!(
-        ("$",(Alpha,NumDigit,"_").plus()).map(|(_,s)|Arg::Var(s.to_string())),
-        ("${",ws__(string((Alpha,NumDigit,"_").plus())),"}").map(|(_,s,_)|Arg::Var(s.to_string())),
-        ("(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
+        ("$[",ws__(PExec),"]").map(|(_,e,_)|Arg::ArrCommand(e)),
+        ("$(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
+        ("${",ws__(string((Alpha,NumDigit,"_").plus())),"}").map(|(_,s,_)|Arg::Var(s)),
+        ("$",string((Alpha,NumDigit,"_").plus())).map(|(_,s)|Arg::Var(s)),
         QuotedLitString.map(|s|Arg::StringLit(s)),
     )
 }

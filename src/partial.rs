@@ -53,6 +53,10 @@ parser! {(ExChannel -> PT)
     sym(or!( "^^", "^", ""))
 }
 
+parser! {(Lines->PT)
+    vpos(p_star(FullStatement),Item::Statement)
+}
+
 parser! {(FullStatement->PT)
     //TODO
     p_list!((Item::Statement)Statement,End)
@@ -85,14 +89,14 @@ parser! {(Args -> PT)
 }
 
 parser! { (QuotedLitString->PT)
-    tpos(plus(or_ig!(
+    tpos(p_plus(or_ig!(
             not("${}()[]\\\"").iplus(),
              ("\\",Any.one()),
     )),Item::Quoted)
 }
 
 parser! { (LitString->PT)
-    tpos(plus(or_ig!(
+    tpos(p_plus(or_ig!(
             not("$|^{}()[]\\\" \n\t<>").plus(),
              ("\\",Any.one()),
     )),Item::String)
@@ -110,9 +114,10 @@ parser! {(StringPart->PT)
 
 parser! {(QuotedStringPart->PT)
     or!(
-        p_list!((Item::Command) sym("$"),tpos((Alpha,NumDigit,"_").plus(),Item::Command)),
+        p_list!((Item::Command) sym("$["),ws__(PExec),sym("]")),
+        p_list!((Item::Command) sym("$("),ws__(PExec),sym(")")),
         p_list!((Item::Var) sym("${"),ws__(tpos((Alpha,NumDigit,"_").plus(),Item::Var)),sym("}")),
-        p_list!((Item::Command) sym("("),ws__(PExec),sym(")")),
+        p_list!((Item::Var) sym("$"),tpos((Alpha,NumDigit,"_").plus(),Item::Var)),
         QuotedLitString,
     )
 }
@@ -120,7 +125,7 @@ parser! {(QuotedStringPart->PT)
 parser! { (ArgP->PT)
     or!(
         p_r_hash,
-        vpos(plus(StringPart),Item::Arg),
+        vpos(p_plus(StringPart),Item::Arg),
         p_list!((Item::String)sym("\""),vpos(star(QuotedStringPart),Item::String),sym("\""))
     )
 }
