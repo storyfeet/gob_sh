@@ -65,6 +65,8 @@ parser! {(FullStatement->PT)
 parser! {(Statement->PT)
     or!(
         p_list!((Item::Statement) kw("let"),tpos(p_plus(ws_(common::Ident)),Item::Ident),sym(ws_("=")),Args),
+        p_list!((Item::Statement) kw("export"),tpos(p_plus(ws_(common::Ident)),Item::Ident),sym(ws_("=")),Args),
+        p_list!((Item::Statement) kw("cd"),ws_(ArgP)),
         p_list!((Item::Statement) PExec,ws_(pmaybe(
                     p_list!((Item::Redirect) ExChannel,sym(or!(">>",">")),ws_(ArgP)),
                     Item::Redirect,
@@ -126,7 +128,7 @@ parser! { (ArgP->PT)
     or!(
         p_r_hash,
         vpos(p_plus(StringPart),Item::Arg),
-        p_list!((Item::String)sym("\""),vpos(star(QuotedStringPart),Item::String),sym("\""))
+        p_list!((Item::String)sym("\""),vpos(p_star(QuotedStringPart),Item::String),sym("\""))
     )
 }
 

@@ -28,6 +28,8 @@ parser! {(FullStatement->Stt)
 parser! {(Statement->Stt)
     or!(
         (keyword("let"),plus(ws_(common::Ident)),ws_("="),Args).map(|(_,ids,_,args)|Stt::Let(ids,args)),
+        (keyword("export"),plus(ws_(common::Ident)),ws_("="),Args).map(|(_,ids,_,args)|Stt::Export(ids,args)),
+        (keyword("cd"),ws_(ArgP)).map(|(_,a)|Stt::Cd(a)),
         (PExec,ws_(maybe((ExChannel,">",exists(">"),ws_(ArgP))))).map(|(exec,wop)|{
             match wop {
                 Some((chan,_,append,filename))=>Stt::Write{exec,chan,append,filename},
