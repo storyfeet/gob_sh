@@ -26,7 +26,7 @@ pub enum Action {
 
 pub fn do_key(k: Key, sets: &mut Settings, rt: &mut RT) -> anyhow::Result<Action> {
     match k {
-        Key::Esc => return Ok(Action::Quit),
+        Key::Ctrl('d') => return Ok(Action::Quit),
         Key::Char('\n') => match parser::Lines.parse_s(&sets.line) {
             Ok(v) => {
                 rt.suspend_raw_mode().ok();
@@ -45,6 +45,7 @@ pub fn do_key(k: Key, sets: &mut Settings, rt: &mut RT) -> anyhow::Result<Action
             }
             Err(_) => sets.add_char('\n', rt),
         },
+        Key::Char('\t') => println!("TODO : TAB"),
 
         Key::Char(c) => sets.add_char(c, rt),
         Key::Backspace => sets.del_char(rt),
@@ -58,12 +59,14 @@ pub fn do_key(k: Key, sets: &mut Settings, rt: &mut RT) -> anyhow::Result<Action
 pub fn do_event(e: Event, sets: &mut Settings, rt: &mut RT) -> anyhow::Result<Action> {
     match e {
         Event::Key(k) => return do_key(k, sets, rt),
+        Event::Unsupported(c_up) if c_up == [27, 91, 49, 59, 53, 65] => println!("Ctrl UP"),
         e => print!("Event {:?}\n\r", e),
     }
     Ok(Action::Cont)
 }
 
 fn main() -> anyhow::Result<()> {
+    ctrlc::set_handler(move || println!("Kill Signal")).ok();
     let mut sets = Settings::new();
 
     let mut rt = stdout().into_raw_mode()?;
@@ -73,30 +76,13 @@ fn main() -> anyhow::Result<()> {
     for raw_e in stdin().events_and_raw() {
         let (e, _) = raw_e?;
         match do_event(e, &mut sets, &mut rt) {
-            Ok(Action::Quit) => return Ok(()),
+            Ok(Action::Quit) => {
+                println!("");
+                return Ok(());
+            }
             Ok(Action::Cont) => {}
             v => print!("Fail : {:?}", v),
         }
     }
-
-    loop {
-        print!("> ");
-        stdout().flush().ok();
-
-        let mut input = String::new();
-        stdin().read_line(&mut input).unwrap();
-
-        let statement = match parser::FullStatement.parse_s(&input) {
-            Ok(v) => v,
-            Err(e) => {
-                println!("{}", e);
-                continue;
-            }
-        };
-        match statement.run(&mut sets) {
-            Ok(true) => println!("\nOK - Success"),
-            Ok(false) => println!("\nOK - fail"),
-            Err(e) => println!("\nErr - {}", e),
-        }
-    }
+    Ok(())
 }

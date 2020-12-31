@@ -12,3 +12,4 @@ err_tools={path="../../mlibs/err_tools/"}
 anyhow = "1.0.34"
 glob = "0.3.0"
 termion = "1.5.5"
+ctrlc = "3.1.7"
