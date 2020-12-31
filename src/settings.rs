@@ -1,4 +1,6 @@
 //! Some options for statements to run, or persistent data
+use crate::partial::Item;
+use bogobble::traits::*;
 
 use crate::ui;
 use crate::RT;
@@ -117,5 +119,37 @@ impl Settings {
         if self.scopes.len() > 1 {
             self.scopes.pop();
         }
+    }
+
+    pub fn tab_complete(&mut self, rt: &mut RT) -> anyhow::Result<()> {
+        ui::unprint(&self.line, rt);
+        let a = self._tab_complete();
+        ui::print(&self.line, rt);
+        a
+    }
+
+    fn _tab_complete(&mut self) -> anyhow::Result<()> {
+        let top = crate::partial::Lines
+            .parse_s(&self.line)
+            .map_err(|e| e.strung())?;
+
+        if let Some(a) = top.find_at_end(&self.line, |&i| i == Item::Arg) {
+            let s = a.on_str(&self.line);
+            let sg = format!("{}{}", s, "*");
+            let g = glob::glob(&sg)
+                .map(|m| m.filter_map(|a| a.ok()).collect())
+                .unwrap_or(Vec::new());
+            match g.len() {
+                0 => return Ok(()),
+                1 => self
+                    .line
+                    .replace_range(a.start.unwrap_or(0).., &g[0].display().to_string()),
+                _ => print!("MULTIPLE OPTIONS"),
+            }
+        } else {
+            println!("TAB WITHOUT TABBABLE");
+        }
+
+        Ok(())
     }
 }

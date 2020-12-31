@@ -45,7 +45,7 @@ pub fn do_key(k: Key, sets: &mut Settings, rt: &mut RT) -> anyhow::Result<Action
             }
             Err(_) => sets.add_char('\n', rt),
         },
-        Key::Char('\t') => println!("TODO : TAB"),
+        Key::Char('\t') => sets.tab_complete(rt).expect("PROBLEM with TABBING"),
 
         Key::Char(c) => sets.add_char(c, rt),
         Key::Backspace => sets.del_char(rt),
