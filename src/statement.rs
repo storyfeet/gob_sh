@@ -1,7 +1,7 @@
 use crate::args::{Arg, Args};
 use crate::channel::Channel;
 use crate::exec::Exec;
-use crate::settings::{Data, Settings};
+use crate::store::{Data, Store};
 use err_tools::*;
 use std::process::Stdio;
 
@@ -19,7 +19,7 @@ pub enum Statement {
 }
 
 impl Statement {
-    pub fn run(&self, s: &mut Settings) -> anyhow::Result<bool> {
+    pub fn run(&self, s: &mut Store) -> anyhow::Result<bool> {
         match self {
             Statement::Exec(e) => {
                 let mut ch = e.run(s, Stdio::inherit(), Stdio::inherit(), Stdio::inherit())?;

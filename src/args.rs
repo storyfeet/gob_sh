@@ -1,5 +1,5 @@
 use crate::exec::Exec;
-use crate::settings::{Data, Settings};
+use crate::store::{Data, Store};
 use err_tools::*;
 use std::io::Read;
 use std::process::Stdio;
@@ -28,7 +28,7 @@ fn try_glob(s: &str, args: &mut Vec<String>) {
 }
 
 impl Args {
-    pub fn run(&self, sets: &mut Settings) -> anyhow::Result<Vec<String>> {
+    pub fn run(&self, sets: &mut Store) -> anyhow::Result<Vec<String>> {
         let mut res = Vec::new();
         for a in &self.0 {
             match a.run(sets)? {
@@ -57,7 +57,7 @@ pub enum Arg {
 }
 
 impl Arg {
-    pub fn run(&self, sets: &mut Settings) -> anyhow::Result<Data> {
+    pub fn run(&self, sets: &mut Store) -> anyhow::Result<Data> {
         match self {
             Arg::RawString(s) => Ok(Data::RawStr(s.to_string())),
             Arg::StringLit(s) => Ok(Data::Str(s.to_string())),

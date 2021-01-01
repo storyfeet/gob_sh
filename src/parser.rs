@@ -92,6 +92,15 @@ parser! {(QuotedStringPart->Arg)
     )
 }
 
+parser! {(QuotedString->Arg)
+    star(QuotedStringPart).map(|v| match v.len(){
+            0=> Arg::StringLit(String::new()),
+            1 => v[0].clone(),
+            _=> Arg::StringExpr(v),
+        }),
+
+}
+
 parser! { (ArgP->Arg)
     or!(
         r_hash.map(|s|Arg::RawString(s) ) ,
@@ -99,12 +108,8 @@ parser! { (ArgP->Arg)
             1 => v[0].clone(),
             _=> Arg::StringExpr(v),
         }),
-        ("\"",star(QuotedStringPart),"\"").map(|(_,v,_)| match v.len(){
-            0=> Arg::StringLit(String::new()),
-            1 => v[0].clone(),
-            _=> Arg::StringExpr(v),
-        }),
-    )
+        ("\"",QuotedString,"\"").map(|(_,s,_)|s),
+        )
 }
 
 /// Raw strings eg: r###" Any \ "##  wierd \ string "###
