@@ -35,6 +35,7 @@ impl Display for Data {
 }
 
 impl Data {
+    #[allow(dead_code)]
     fn on_args(self, vec: &mut Vec<String>) {
         match self {
             Data::List(l) => {

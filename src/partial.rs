@@ -54,12 +54,12 @@ parser! {(ExChannel -> PT)
 }
 
 parser! {(Lines->PT)
-    vpos(p_star(FullStatement),Item::Statement)
+    vpos(first(p_star(ws_(FullStatement)),EOI),Item::Statement)
 }
 
 parser! {(FullStatement->PT)
     //TODO
-    p_list!((Item::Statement)Statement,End)
+    p_list!((Item::Statement) Statement,tpos(p_plus(End),Item::End))
 }
 
 parser! {(Statement->PT)
@@ -99,7 +99,7 @@ parser! { (QuotedLitString->PT)
 
 parser! { (LitString->PT)
     tpos(p_plus(or_ig!(
-            not("$|^{}()[]\\\" \n\t<>").plus(),
+            not("$|^{}()[]\\\" \n\t<>;").plus(),
              ("\\",Any.one()),
     )),Item::String)
 }

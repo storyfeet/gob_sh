@@ -14,7 +14,6 @@ mod ui;
 use shell::Shell;
 use std::io::*;
 use termion::event::Event;
-use termion::event::Key;
 use termion::input::TermReadEventsAndRaw;
 use termion::raw::{IntoRawMode, RawTerminal};
 
@@ -26,24 +25,9 @@ pub enum Action {
     Quit,
 }
 
-pub fn do_key(k: Key, sets: &mut Shell, rt: &mut RT) -> anyhow::Result<Action> {
-    match k {
-        Key::Ctrl('d') => return Ok(Action::Quit),
-        Key::Char('\n') => sets.on_enter(rt),
-        Key::Char('\t') => sets.tab_complete(rt).expect("PROBLEM with TABBING"),
-
-        Key::Char(c) => sets.prompt.add_char(c, rt),
-        Key::Backspace => sets.prompt.del_char(rt),
-        Key::Ctrl('h') => sets.prompt.del_line(rt),
-        e => println!("{:?}", e),
-    }
-
-    Ok(Action::Cont)
-}
-
-pub fn do_event(e: Event, sets: &mut Shell, rt: &mut RT) -> anyhow::Result<Action> {
+pub fn do_event(e: Event, shell: &mut Shell, rt: &mut RT) -> anyhow::Result<Action> {
     match e {
-        Event::Key(k) => return do_key(k, sets, rt),
+        Event::Key(k) => return shell.do_key(k, rt),
         Event::Unsupported(c_up) if c_up == [27, 91, 49, 59, 53, 65] => println!("Ctrl UP"),
         e => print!("Event {:?}\n\r", e),
     }

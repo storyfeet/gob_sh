@@ -1,6 +1,4 @@
 use crate::RT;
-use bogobble::traits::*;
-use std::io::Write;
 use termion::*;
 
 pub fn line_count(s: &str, w: usize) -> usize {
@@ -13,7 +11,7 @@ pub fn line_count(s: &str, w: usize) -> usize {
                 cw = 0;
             }
             _ => {
-                if cw + 3 > w {
+                if cw >= w {
                     res += 1;
                     cw = 0;
                 } else {
@@ -58,29 +56,9 @@ pub fn unprint(s: &str, _rt: &mut RT) {
     print!("\r{}", clear::AfterCursor,);
 }
 
-pub fn print(s: &str, rt: &mut RT) {
-    //let lines: Vec<&str> = self.line.split("\n").collect();
-    //parse first
-    let s2 = match crate::partial::Lines.parse_s(s) {
-        Ok(v) => {
-            let mut s =
-                bogobble::partial::mark_list::mark_str(&v, s).expect("Marking out of String");
-            s.push_str(&color::Fg(color::Reset).to_string());
-            s
-        }
-        Err(e) => format!(
-            "{}{}{}{}",
-            color::Fg(color::LightRed),
-            s,
-            color::Fg(color::Reset),
-            e,
-        ),
-    };
-    assert!(s2.len() >= s.len(), "Marked string should be longer");
-    let mut pre = "> ";
-    for a in s2.split("\n") {
-        print!("{}{}", pre, a);
-        pre = "\n\r... ";
+pub fn char_as_int(c: char) -> Option<usize> {
+    match c {
+        n if n >= '0' && n <= '9' => Some(n as usize - 48),
+        _ => None,
     }
-    rt.flush().ok();
 }

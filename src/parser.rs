@@ -18,7 +18,7 @@ parser! {(ExChannel ->Channel)
 }
 
 parser! {(Lines -> Vec<Stt>)
-    first(plus(FullStatement),EOI)
+    first(star(ws_(FullStatement)),EOI)
 }
 
 parser! {(FullStatement->Stt)
@@ -66,7 +66,7 @@ parser! { (QuotedLitString->String)
 
 parser! { (LitString->String)
     strings_plus(or!(
-            string(not("$|^{}()[]\\\" \n\t<>").plus()),
+            string(not("$|^{}()[]\\\" \n\t<>;").plus()),
             "\\n".map(|_|"\n".to_string()),
             "\\t".map(|_|"\t".to_string()),
              ("\\",Any.one()).map(|(_,c)| {let mut s=String::new(); s.push(c);s}),

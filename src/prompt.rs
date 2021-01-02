@@ -3,14 +3,15 @@ use crate::RT;
 use bogobble::traits::*;
 use std::fmt::Write;
 use std::io::Write as IWrite;
+use std::path::PathBuf;
 use termion::color;
 
 #[derive(Debug, Clone)]
 pub struct Prompt {
     pr_line: String,
     built: String,
-    options: Option<(usize, Vec<String>)>,
-    message: Option<String>,
+    pub options: Option<(usize, Vec<String>)>,
+    pub message: Option<String>,
     pub line: String,
 }
 
@@ -23,6 +24,17 @@ impl Prompt {
             line: String::new(),
             built: String::new(),
         }
+    }
+
+    pub fn esc(&mut self, rt: &mut RT) {
+        self.unprint(rt);
+        self.clear_help();
+        self.print(rt);
+    }
+
+    pub fn clear_help(&mut self) {
+        self.options = None;
+        self.message = None;
     }
 
     pub fn reset(&mut self, pr_line: String, rt: &mut RT) {
@@ -45,56 +57,103 @@ impl Prompt {
         crate::ui::unprint(&stp, rt);
     }
 
-    pub fn build_line(&self) -> String {
-        let mut res = String::new();
+    pub fn build_line<'a>(&'a self) -> (String, Option<String>) {
         match crate::partial::Lines.parse_s(&self.line) {
             Ok(v) => {
                 let s = bogobble::partial::mark_list::mark_str(&v, &self.line)
                     .expect("Marking out of String");
-                write!(res, "{}{}", s, color::Fg(color::Reset)).ok()
+                let res = format!("{}{}", s, color::Fg(color::Reset));
+                let res = res.replace("\n", "\n... ");
+                (res, None)
             }
-            Err(e) => write!(
-                res,
-                "{}{}{}{}",
-                color::Fg(color::LightRed),
-                &self.line,
-                color::Fg(color::Reset),
-                e,
-            )
-            .ok(),
-        };
-        res.replace("\n", "\n... ")
+            Err(e) => {
+                let res = format!(
+                    "{}{}{}",
+                    color::Fg(color::LightRed),
+                    &self.line,
+                    color::Fg(color::Reset),
+                );
+                let res = res.replace("\n", "\n... ");
+                (res, Some(e.to_string()))
+            }
+        }
     }
     pub fn build(&mut self) {
         self.built.clear();
-        self.built.push_str(&self.pr_line);
+
+        let (line, err) = self.build_line();
+        if let Some(e) = err {
+            self.message = Some(e);
+        }
 
         if let Some(m) = &self.message {
-            write!(self.built, "[{}] >", m).ok();
+            write!(self.built, "[{}]\n\r", m).ok();
         }
-        let line = self.build_line();
-        //println!("Line === {}", line);
+        self.built.push_str(&self.pr_line);
         write!(self.built, "{}", line).ok();
         if let Some((_, ops)) = &self.options {
-            for (n, o) in ops.iter().enumerate() {
-                write!(self.built, "\n{}:  {}", n, o).ok();
+            match ops.len() {
+                n if n <= 10 => {
+                    for (n, o) in ops.iter().enumerate() {
+                        write!(self.built, "\n{}:  {}", n, o).ok();
+                    }
+                }
+                _ => {
+                    for (n, o) in ops.iter().enumerate() {
+                        let s = match PathBuf::from(o).file_name() {
+                            Some(s) => s.to_string_lossy().to_string(),
+                            None => o.to_string(),
+                        };
+                        let nl = match n % 3 {
+                            0 => "\n",
+                            _ => "",
+                        };
+                        write!(self.built, "{}{:0>2}:  {:20}", nl, n, s,).ok();
+                    }
+                }
             }
         }
     }
     pub fn add_char(&mut self, c: char, rt: &mut RT) {
         self.unprint(rt);
+        if let Some((pos, mut ops)) = self.options.take() {
+            if let Some(n) = crate::ui::char_as_int(c) {
+                if ops.len() <= 10 {
+                    match ops.get(n) {
+                        Some(v) => {
+                            self.line.replace_range(pos.., v);
+                            self.clear_help();
+                        }
+                        None => {
+                            self.message = Some("Selection Not Valid".to_string());
+                            self.options = Some((pos, ops));
+                        }
+                    }
+                } else {
+                    //More than 10 options
+                    ops = ops.into_iter().skip(n * 10).take(10).collect();
+                    self.options = Some((pos, ops))
+                }
+                self.print(rt);
+                return;
+            }
+        }
         self.line.push(c);
+        self.clear_help();
+
         self.print(rt);
     }
 
     pub fn del_char(&mut self, rt: &mut RT) {
         self.unprint(rt);
+        self.clear_help();
         crate::ui::del_char(&mut self.line);
         self.print(rt);
     }
 
     pub fn del_line(&mut self, rt: &mut RT) {
         self.unprint(rt);
+        self.clear_help();
         crate::ui::del_line(&mut self.line);
         self.print(rt);
     }
