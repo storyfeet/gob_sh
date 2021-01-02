@@ -4,8 +4,10 @@ use bogobble::traits::*;
 
 use crate::store::Store;
 use crate::tab_complete::*;
-use crate::{parser, prompt::Prompt, ui, RT};
+use crate::{parser, prompt::Prompt, RT};
+use std::io::Read;
 use std::io::Write;
+use std::path::Path;
 
 #[derive(Clone, Debug)]
 
@@ -18,7 +20,7 @@ impl Shell {
     /// Invariants : Settings must always have at least one layer in scope.
     pub fn new() -> Shell {
         Shell {
-            prompt: Prompt::new(),
+            prompt: Prompt::new(">>".to_string()),
             store: Store::new(),
         }
     }
@@ -69,7 +71,7 @@ impl Shell {
     pub fn reset(&mut self, rt: &mut RT) {
         let pt = self
             .store
-            .get("BO_PROMPT")
+            .get("RU_PROMPT")
             .map(|d| d.to_string())
             .unwrap_or(String::from(">>"));
         let pt = match parser::QuotedString.parse_s(&pt) {
@@ -80,5 +82,17 @@ impl Shell {
             Err(_) => pt,
         };
         self.prompt.reset(pt, rt);
+        rt.flush().ok();
+    }
+
+    pub fn source_path<P: AsRef<Path>>(&mut self, p: P) -> anyhow::Result<()> {
+        let mut f = std::fs::File::open(p)?;
+        let mut buf = String::new();
+        f.read_to_string(&mut buf)?;
+        let p = parser::Lines.parse_s(&buf).map_err(|e| e.strung())?;
+        for v in p {
+            v.run(&mut self.store).ok();
+        }
+        Ok(())
     }
 }

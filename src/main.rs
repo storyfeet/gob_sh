@@ -52,15 +52,21 @@ pub fn do_event(e: Event, sets: &mut Shell, rt: &mut RT) -> anyhow::Result<Actio
 
 fn main() -> anyhow::Result<()> {
     ctrlc::set_handler(move || println!("Kill Signal")).ok();
-    let mut sets = Shell::new();
-
     let mut rt = stdout().into_raw_mode()?;
-    print!("{}> ", termion::cursor::Save);
-    rt.flush()?;
+    let mut shell = Shell::new();
+
+    let mut init = std::path::PathBuf::from(std::env::var("HOME").unwrap_or("".to_string()));
+    init.push(".config/rushell/init.rush");
+
+    if let Err(e) = shell.source_path(init) {
+        println!("Error sourcing home_config : {}", e);
+    }
+
+    shell.reset(&mut rt);
 
     for raw_e in stdin().events_and_raw() {
         let (e, _) = raw_e?;
-        match do_event(e, &mut sets, &mut rt) {
+        match do_event(e, &mut shell, &mut rt) {
             Ok(Action::Quit) => {
                 println!("");
                 return Ok(());

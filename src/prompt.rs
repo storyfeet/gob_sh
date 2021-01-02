@@ -15,9 +15,9 @@ pub struct Prompt {
 }
 
 impl Prompt {
-    pub fn new() -> Self {
+    pub fn new(pr_line: String) -> Self {
         Prompt {
-            pr_line: String::new(),
+            pr_line,
             options: None,
             message: None,
             line: String::new(),
@@ -26,10 +26,7 @@ impl Prompt {
     }
 
     pub fn reset(&mut self, pr_line: String, rt: &mut RT) {
-        *self = Self {
-            pr_line,
-            ..Self::new()
-        };
+        *self = Self::new(pr_line);
         self.print(rt);
     }
 
