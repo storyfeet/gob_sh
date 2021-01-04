@@ -16,6 +16,7 @@ use std::path::Path;
 pub struct Shell {
     pub prompt: Prompt,
     pub store: Store,
+    history: HistoryStore,
 }
 
 impl Shell {
@@ -24,6 +25,7 @@ impl Shell {
         Shell {
             prompt: Prompt::new(">>".to_string()),
             store: Store::new(),
+            history: HistoryStore::new(),
         }
     }
 
@@ -56,6 +58,7 @@ impl Shell {
     pub fn on_enter(&mut self, rt: &mut RT) {
         match parser::Lines.parse_s(&self.prompt.line) {
             Ok(v) => {
+                self.history.push_command(self.prompt.line.clone());
                 rt.suspend_raw_mode().ok();
                 print!("\n\r");
                 rt.flush().ok();

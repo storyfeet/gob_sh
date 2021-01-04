@@ -23,17 +23,19 @@ pub fn line_count(s: &str, w: usize) -> usize {
     res
 }
 
-pub fn del_char(s: &mut String) {
+pub fn del_char(s: &mut String) -> Option<char> {
     let l = s.len();
     for x in 1..6 {
         if l < x {
-            return;
+            return None;
         }
         if let Some(_) = s.as_str().get(l - x..) {
+            let c = s[(l - x)..].chars().next();
             s.remove(l - x);
-            return;
+            return c;
         }
     }
+    None
 }
 
 pub fn del_line(s: &mut String) {
