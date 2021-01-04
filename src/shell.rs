@@ -16,7 +16,7 @@ use std::path::Path;
 pub struct Shell {
     pub prompt: Prompt,
     pub store: Store,
-    history: HistoryStore,
+    pub history: HistoryStore,
 }
 
 impl Shell {
@@ -56,6 +56,7 @@ impl Shell {
         Ok(())
     }
     pub fn on_enter(&mut self, rt: &mut RT) {
+        self.history.pos = None;
         match parser::Lines.parse_s(&self.prompt.line) {
             Ok(v) => {
                 self.history.push_command(self.prompt.line.clone());
@@ -114,6 +115,8 @@ impl Shell {
             Key::Backspace => self.prompt.del_char(rt),
             Key::Ctrl('h') => self.prompt.del_line(rt),
             Key::Esc => self.prompt.esc(rt),
+            Key::Up => self.prompt.replace_line(self.history.up_recent(), rt),
+            Key::Down => self.prompt.replace_line(self.history.down_recent(), rt),
             e => println!("{:?}", e),
         }
 

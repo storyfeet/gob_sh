@@ -34,12 +34,16 @@ pub fn tab_complete_path(s: &str) -> Complete {
 #[derive(Clone, Debug)]
 pub struct HistoryStore {
     mp: BTreeMap<String, HistoryItem>,
+    recent: Vec<String>,
+    pub pos: Option<usize>,
 }
 
 impl HistoryStore {
     pub fn new() -> Self {
         Self {
             mp: BTreeMap::new(),
+            recent: Vec::new(),
+            pos: None,
         }
     }
 
@@ -53,6 +57,10 @@ impl HistoryStore {
             cv.time = time;
             cv.hits += 1;
             return;
+        }
+        self.recent.push(cmd.clone());
+        if self.recent.len() > 200 {
+            self.recent.remove(0);
         }
 
         self.mp.insert(
@@ -76,6 +84,34 @@ impl HistoryStore {
         self.mp
             .range::<str, _>((Bound::Included(cmd), Bound::Excluded(cend.as_str())))
             .collect()
+    }
+
+    pub fn up_recent(&mut self) -> Option<&String> {
+        match self.pos {
+            Some(n) => self.select_recent(n + 1),
+            None => self.select_recent(0),
+        }
+    }
+
+    pub fn down_recent(&mut self) -> Option<&String> {
+        match self.pos {
+            Some(0) => {
+                self.pos = None;
+                None
+            }
+            Some(n) => self.select_recent(n - 1),
+            None => self.select_recent(0),
+        }
+    }
+
+    fn select_recent(&mut self, n: usize) -> Option<&String> {
+        let l = self.recent.len();
+        if n >= l {
+            self.pos = None;
+            return None;
+        }
+        self.pos = Some(n);
+        self.recent.get(l - 1 - n)
     }
 }
 

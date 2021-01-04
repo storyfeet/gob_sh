@@ -10,6 +10,7 @@ use termion::color;
 pub struct Prompt {
     pr_line: String,
     built: String,
+    restore: Option<String>,
     pub options: Option<(usize, Vec<String>)>,
     pub message: Option<String>,
     pub line: String,
@@ -21,6 +22,7 @@ impl Prompt {
             pr_line,
             options: None,
             message: None,
+            restore: None,
             line: String::new(),
             built: String::new(),
         }
@@ -29,6 +31,25 @@ impl Prompt {
     pub fn esc(&mut self, rt: &mut RT) {
         self.unprint(rt);
         self.clear_help();
+        self.print(rt);
+    }
+
+    pub fn replace_line(&mut self, line: Option<&String>, rt: &mut RT) {
+        self.unprint(rt);
+        self.clear_help();
+        let line = line.map(|l| l.clone());
+        match (&mut self.restore, line) {
+            (Some(_), Some(l)) => self.line = l,
+            (None, Some(mut l)) => {
+                std::mem::swap(&mut l, &mut self.line);
+                self.restore = Some(l);
+            }
+            (Some(ref mut v), None) => {
+                std::mem::swap(&mut self.line, v);
+                self.restore = None;
+            }
+            _ => self.line = "".to_string(),
+        }
         self.print(rt);
     }
 
