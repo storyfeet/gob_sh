@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::ops::Bound;
 use std::path::{Path, PathBuf};
@@ -35,6 +36,7 @@ pub fn tab_complete_path(s: &str) -> Complete {
 pub struct HistoryStore {
     mp: BTreeMap<String, HistoryItem>,
     recent: Vec<String>,
+    pub guesses: Option<Vec<String>>,
     pub pos: Option<usize>,
 }
 
@@ -44,36 +46,69 @@ impl HistoryStore {
             mp: BTreeMap::new(),
             recent: Vec::new(),
             pos: None,
+            guesses: None,
         }
     }
 
     pub fn push_command(&mut self, cmd: String) {
         let time = SystemTime::now();
         let pwd = std::env::current_dir().unwrap_or(PathBuf::from(""));
-        if let Some(mut cv) = self.mp.get_mut(&cmd) {
-            if !cv.pwds.contains(&pwd) {
-                cv.pwds.push(pwd.clone());
+        match self.mp.get_mut(&cmd) {
+            Some(mut cv) => {
+                if !cv.pwds.contains(&pwd) {
+                    cv.pwds.push(pwd.clone());
+                }
+                cv.time = time;
+                cv.hits += 1;
             }
-            cv.time = time;
-            cv.hits += 1;
-            return;
+            None => {
+                self.mp.insert(
+                    cmd.clone(),
+                    HistoryItem {
+                        pwds: vec![pwd],
+                        time,
+                        hits: 1,
+                    },
+                );
+            }
         }
-        self.recent.push(cmd.clone());
+
+        self.recent.push(cmd);
         if self.recent.len() > 200 {
             self.recent.remove(0);
         }
+    }
 
-        self.mp.insert(
-            cmd,
-            HistoryItem {
-                pwds: vec![pwd],
-                time,
-                hits: 1,
-            },
-        );
+    pub fn guess(&mut self, cmd: &str) -> bool {
+        let mut g = self.cmd_complete(cmd);
+        if g.len() == 0 {
+            return false;
+        }
+        let cpwd = std::env::current_dir().unwrap_or(PathBuf::from(""));
+        g.sort_by(|(_, a), (_, b)| {
+            let mut sca = a.hits;
+            if a.pwds.contains(&cpwd) {
+                sca += 10;
+            }
+            let mut scb = b.hits;
+            if b.pwds.contains(&cpwd) {
+                scb += 10;
+            }
+            match a.time.cmp(&b.time) {
+                Ordering::Greater => sca += 10,
+                Ordering::Less => scb += 10,
+                _ => {}
+            }
+            sca.cmp(&scb)
+        });
+        self.guesses = Some(g.into_iter().map(|(a, _)| a.clone()).collect());
+        true
     }
 
     pub fn cmd_complete<'a>(&'a mut self, cmd: &str) -> Vec<(&'a String, &'a HistoryItem)> {
+        if cmd == "" {
+            return self.mp.iter().collect();
+        }
         //Get exclude str with next char.
         let mut cend = cmd.to_string();
         let ec = crate::ui::del_char(&mut cend).and_then(|c| std::char::from_u32((c as u32) + 1));
@@ -104,14 +139,19 @@ impl HistoryStore {
         }
     }
 
-    fn select_recent(&mut self, n: usize) -> Option<&String> {
-        let l = self.recent.len();
+    pub fn select_recent(&mut self, n: usize) -> Option<&String> {
+        let v = match &self.guesses {
+            Some(g) => g,
+            None => &self.recent,
+        };
+
+        let l = v.len();
         if n >= l {
             self.pos = None;
             return None;
         }
         self.pos = Some(n);
-        self.recent.get(l - 1 - n)
+        v.get(l - 1 - n)
     }
 }
 

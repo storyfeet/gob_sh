@@ -57,6 +57,7 @@ impl Shell {
     }
     pub fn on_enter(&mut self, rt: &mut RT) {
         self.history.pos = None;
+        self.history.guesses = None;
         match parser::Lines.parse_s(&self.prompt.line) {
             Ok(v) => {
                 self.history.push_command(self.prompt.line.clone());
@@ -117,6 +118,14 @@ impl Shell {
             Key::Esc => self.prompt.esc(rt),
             Key::Up => self.prompt.replace_line(self.history.up_recent(), rt),
             Key::Down => self.prompt.replace_line(self.history.down_recent(), rt),
+            Key::Right => match self.history.guess(&self.prompt.line) {
+                true => self.prompt.replace_line(self.history.select_recent(0), rt),
+                false => self.prompt.replace_line(None, rt),
+            },
+            Key::Left => {
+                self.history.guesses = None;
+                self.prompt.replace_line(None, rt);
+            }
             e => println!("{:?}", e),
         }
 

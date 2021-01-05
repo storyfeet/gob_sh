@@ -48,7 +48,7 @@ impl Prompt {
                 std::mem::swap(&mut self.line, v);
                 self.restore = None;
             }
-            _ => self.line = "".to_string(),
+            _ => {} //self.line = "".to_string(),
         }
         self.print(rt);
     }
