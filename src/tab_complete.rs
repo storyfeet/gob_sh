@@ -1,5 +1,8 @@
+use chrono::*;
+use serde_derive::*;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::ops::Bound;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -50,9 +53,10 @@ impl HistoryStore {
         }
     }
 
-    pub fn push_command(&mut self, cmd: String) {
+    pub fn push_command(&mut self, cmd: String) -> anyhow::Result<String> {
         let time = SystemTime::now();
         let pwd = std::env::current_dir().unwrap_or(PathBuf::from(""));
+        let rs;
         match self.mp.get_mut(&cmd) {
             Some(mut cv) => {
                 if !cv.pwds.contains(&pwd) {
@@ -60,16 +64,16 @@ impl HistoryStore {
                 }
                 cv.time = time;
                 cv.hits += 1;
+                rs = HistorySaver::new(&cmd, &cv).save()?;
             }
             None => {
-                self.mp.insert(
-                    cmd.clone(),
-                    HistoryItem {
-                        pwds: vec![pwd],
-                        time,
-                        hits: 1,
-                    },
-                );
+                let item = HistoryItem {
+                    pwds: vec![pwd],
+                    time,
+                    hits: 1,
+                };
+                rs = HistorySaver::new(&cmd, &item).save()?;
+                self.mp.insert(cmd.clone(), item);
             }
         }
 
@@ -77,6 +81,7 @@ impl HistoryStore {
         if self.recent.len() > 200 {
             self.recent.remove(0);
         }
+        Ok(rs)
     }
 
     pub fn guess(&mut self, cmd: &str) -> bool {
@@ -155,9 +160,57 @@ impl HistoryStore {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HistoryItem {
     pwds: Vec<PathBuf>,
     time: SystemTime,
     hits: usize,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct SaveArray<'a> {
+    item: Vec<&'a HistorySaver>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HistorySaver {
+    cmd: String,
+    pwds: Vec<PathBuf>,
+    time: SystemTime,
+    hits: usize,
+}
+
+impl HistorySaver {
+    pub fn new(cmd: &str, item: &HistoryItem) -> Self {
+        HistorySaver {
+            cmd: cmd.to_string(),
+            pwds: item.pwds.clone(),
+            time: item.time,
+            hits: item.hits,
+        }
+    }
+
+    //Currently just append to file and hope for the best.
+    pub fn save(&self) -> anyhow::Result<String> {
+        let a = SaveArray { item: vec![self] };
+        let mut tdir = PathBuf::from(std::env::var("HOME")?);
+        tdir.push(".config/rushell/history");
+        let ch_t: DateTime<offset::Local> = DateTime::from(self.time);
+
+        std::fs::create_dir_all(&tdir)?;
+        let dt_s = ch_t.format("history_%Y_%m.toml").to_string();
+        tdir.push(&dt_s);
+
+        let tv = toml::Value::try_from(&a)?;
+        let s = toml::to_string(&tv)?;
+
+        let mut f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .write(true)
+            .open(&tdir)?;
+        write!(f, "{}", &s)?;
+
+        Ok(format!("Written to '{}'", tdir.display()))
+    }
 }

@@ -60,7 +60,8 @@ impl Shell {
         self.history.guesses = None;
         match parser::Lines.parse_s(&self.prompt.line) {
             Ok(v) => {
-                self.history.push_command(self.prompt.line.clone());
+                let hist_r = self.history.push_command(self.prompt.line.clone());
+
                 rt.suspend_raw_mode().ok();
                 print!("\n\r");
                 rt.flush().ok();
@@ -73,6 +74,12 @@ impl Shell {
                 }
                 rt.activate_raw_mode().ok();
                 self.reset(rt);
+                self.prompt.unprint(rt);
+                match hist_r {
+                    Err(e) => self.prompt.message = Some(e.to_string()),
+                    Ok(s) => self.prompt.message = Some(s),
+                }
+                self.prompt.print(rt);
             }
             Err(_) => self.prompt.add_char('\n', rt),
         }
