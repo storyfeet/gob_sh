@@ -22,10 +22,12 @@ pub struct Shell {
 impl Shell {
     /// Invariants : Settings must always have at least one layer in scope.
     pub fn new() -> Shell {
+        let mut history = HistoryStore::new();
+        history.load_history();
         Shell {
             prompt: Prompt::new(">>".to_string()),
             store: Store::new(),
-            history: HistoryStore::new(),
+            history,
         }
     }
 

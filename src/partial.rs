@@ -13,7 +13,8 @@ pub enum Item {
     Redirect,
     Ident,
     Exec,
-    //Lit,
+    Esc,
+    Lit,
     Command,
     Var,
     Arg,
@@ -31,7 +32,9 @@ impl Display for Item {
             Item::Symbol => write!(f, "{}", color::Fg(color::Blue)),
             Item::Ident => write!(f, "{}", color::Fg(color::White)),
             Item::String => write!(f, "{}", color::Fg(color::LightGreen)),
-            //        Item::Err => write!(f, "{}", color::Fg(color::Yellow)),
+            Item::Lit => write!(f, "{}", color::Fg(color::LightYellow)),
+            Item::Esc => write!(f, "{}", color::Fg(color::LightBlue)),
+            //Item::Err => write!(f, "{}", color::Fg(color::Red)),
             _ => write!(f, "{}", color::Fg(color::Reset)),
         }
     }
@@ -91,16 +94,16 @@ parser! {(Args -> PT)
 }
 
 parser! { (QuotedLitString->PT)
-    tpos(p_plus(or_ig!(
-            not("${}()[]\\\"").iplus(),
-             ("\\",Any.one()),
+    vpos(p_plus(or!(
+            tpos(not("${}()[]\\\"").iplus(),Item::Lit),
+            tpos(("\\",or_ig!(Any.one(),EOI)),Item::Esc),
     )),Item::Quoted)
 }
 
 parser! { (LitString->PT)
-    tpos(p_plus(or_ig!(
-            not("$|^{}()[]\\\" \n\t<>;").plus(),
-             ("\\",Any.one()),
+    vpos(p_plus(or!(
+            tpos(not("$|^{}()[]\\\" \n\t<>;").plus(),Item::String),
+            tpos(("\\",or_ig!(Any.one(),EOI)),Item::Esc),
     )),Item::String)
 }
 

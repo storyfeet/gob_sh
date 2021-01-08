@@ -2,7 +2,7 @@ use chrono::*;
 use serde_derive::*;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::ops::Bound;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -66,6 +66,10 @@ impl HistoryStore {
             pos: None,
             guesses: None,
         }
+    }
+
+    pub fn load_history(&mut self) {
+        load_history(2, &mut self.mp);
     }
 
     pub fn push_command(&mut self, cmd: String) -> anyhow::Result<()> {
@@ -186,12 +190,38 @@ pub struct SaveArray<'a> {
     item: Vec<&'a HistorySaver>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+pub struct LoadArray {
+    item: Vec<HistorySaver>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct HistorySaver {
     cmd: String,
     pwds: Vec<PathBuf>,
     time: SystemTime,
     hits: usize,
+}
+
+fn date_to_history_path(t: SystemTime) -> PathBuf {
+    let res = history_path();
+    let (y, m) = year_month(t);
+    on_year_month(&res, y, m)
+}
+fn history_path() -> PathBuf {
+    let mut tdir = PathBuf::from(std::env::var("HOME").unwrap_or(String::new()));
+    tdir.push(".config/rushell/history");
+    tdir
+}
+
+fn on_year_month(p: &Path, y: i32, m: u32) -> PathBuf {
+    let dt_s = format!("history_{}_{}.toml", y, m);
+    p.join(&dt_s)
+}
+
+fn year_month(t: SystemTime) -> (i32, u32) {
+    let dt: DateTime<offset::Local> = DateTime::from(t);
+    (dt.year(), dt.month())
 }
 
 impl HistorySaver {
@@ -207,13 +237,11 @@ impl HistorySaver {
     //Currently just append to file and hope for the best.
     pub fn save(&self) -> anyhow::Result<()> {
         let a = SaveArray { item: vec![self] };
-        let mut tdir = PathBuf::from(std::env::var("HOME")?);
-        tdir.push(".config/rushell/history");
-        let ch_t: DateTime<offset::Local> = DateTime::from(self.time);
 
-        std::fs::create_dir_all(&tdir)?;
-        let dt_s = ch_t.format("history_%Y_%m.toml").to_string();
-        tdir.push(&dt_s);
+        let tdir = date_to_history_path(self.time);
+        if let Some(par) = tdir.parent() {
+            std::fs::create_dir_all(par)?;
+        }
 
         let tv = toml::Value::try_from(&a)?;
         let s = toml::to_string(&tv)?;
@@ -227,4 +255,39 @@ impl HistorySaver {
 
         Ok(())
     }
+}
+
+pub fn load_history(months: u32, mp: &mut BTreeMap<String, HistoryItem>) {
+    let (y, m) = year_month(SystemTime::now());
+    let path = history_path();
+
+    for n in 0..months {
+        let sub = months - n;
+        let y2 = y - (sub as i32 / 12);
+        let m2 = (m + 12 - months as u32) % 12;
+
+        load_history_file(on_year_month(&path, y2, m2), mp).ok();
+    }
+}
+
+pub fn load_history_file<P: AsRef<Path>>(
+    path: P,
+    mp: &mut BTreeMap<String, HistoryItem>,
+) -> anyhow::Result<()> {
+    let mut b = String::new();
+    let mut f = std::fs::File::open(path)?;
+    f.read_to_string(&mut b)?;
+    let la: LoadArray = toml::from_str(&b)?;
+    for i in la.item {
+        mp.insert(
+            i.cmd,
+            HistoryItem {
+                pwds: i.pwds,
+                hits: i.hits,
+                time: i.time,
+            },
+        );
+    }
+
+    Ok(())
 }

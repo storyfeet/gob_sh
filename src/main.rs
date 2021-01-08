@@ -48,16 +48,17 @@ fn main() -> anyhow::Result<()> {
 
     shell.reset(&mut rt);
 
-    for raw_e in stdin().events_and_raw() {
-        let (e, _) = raw_e?;
-        match do_event(e, &mut shell, &mut rt) {
-            Ok(Action::Quit) => {
-                println!("");
-                return Ok(());
+    loop {
+        for raw_e in stdin().events_and_raw() {
+            let (e, _) = raw_e?;
+            match do_event(e, &mut shell, &mut rt) {
+                Ok(Action::Quit) => {
+                    println!("");
+                    return Ok(());
+                }
+                Ok(Action::Cont) => {}
+                v => print!("Fail : {:?}", v),
             }
-            Ok(Action::Cont) => {}
-            v => print!("Fail : {:?}", v),
         }
     }
-    Ok(())
 }
