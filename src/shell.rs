@@ -77,7 +77,7 @@ impl Shell {
                 self.prompt.unprint(rt);
                 match hist_r {
                     Err(e) => self.prompt.message = Some(e.to_string()),
-                    Ok(s) => self.prompt.message = Some(s),
+                    Ok(_) => {} // self.prompt.message = Some(s),
                 }
                 self.prompt.print(rt);
             }

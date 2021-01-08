@@ -13,15 +13,30 @@ pub enum Complete {
     None,
 }
 
-fn dir_slash(p: &Path) -> String {
-    match p.metadata().map(|dt| dt.is_dir()) {
-        Ok(true) => format!("{}/", p.display()),
-        _ => p.display().to_string(),
+fn dir_slash(p: &Path, td: Option<&String>) -> String {
+    let mut s = p
+        .to_str()
+        .map(|s| match td {
+            Some(hs) => format!("~{}", s.strip_prefix(hs).unwrap_or(s)),
+            None => s.to_string(),
+        })
+        .map(|s| s.replace(" ", "\\ "))
+        .unwrap_or(p.display().to_string());
+    if let Ok(true) = p.metadata().map(|dt| dt.is_dir()) {
+        s.push('/');
     }
+    s
 }
 
 pub fn tab_complete_path(s: &str) -> Complete {
-    let sg = format!("{}{}", s.trim_end_matches("*"), "*");
+    let (s, hd) = match s.starts_with("~") {
+        true => {
+            let hd = std::env::var("HOME").unwrap_or("".to_string());
+            (s.replacen("~", &hd, 1), Some(hd))
+        }
+        false => (s.to_string(), None),
+    };
+    let sg = format!("{}{}", s.replace("\\ ", " ").trim_end_matches("*"), "*");
     let g = glob::glob(&sg)
         .map(|m| m.filter_map(|a| a.ok()).collect())
         .unwrap_or(Vec::new());
@@ -29,9 +44,9 @@ pub fn tab_complete_path(s: &str) -> Complete {
         0 => return Complete::None,
         1 => {
             let tg = &g[0];
-            Complete::One(dir_slash(tg))
+            Complete::One(dir_slash(tg, hd.as_ref()))
         }
-        _ => Complete::Many(g.into_iter().map(|d| dir_slash(&d)).collect()),
+        _ => Complete::Many(g.into_iter().map(|d| dir_slash(&d, hd.as_ref())).collect()),
     }
 }
 
@@ -53,10 +68,9 @@ impl HistoryStore {
         }
     }
 
-    pub fn push_command(&mut self, cmd: String) -> anyhow::Result<String> {
+    pub fn push_command(&mut self, cmd: String) -> anyhow::Result<()> {
         let time = SystemTime::now();
         let pwd = std::env::current_dir().unwrap_or(PathBuf::from(""));
-        let rs;
         match self.mp.get_mut(&cmd) {
             Some(mut cv) => {
                 if !cv.pwds.contains(&pwd) {
@@ -64,7 +78,7 @@ impl HistoryStore {
                 }
                 cv.time = time;
                 cv.hits += 1;
-                rs = HistorySaver::new(&cmd, &cv).save()?;
+                HistorySaver::new(&cmd, &cv).save()?;
             }
             None => {
                 let item = HistoryItem {
@@ -72,7 +86,7 @@ impl HistoryStore {
                     time,
                     hits: 1,
                 };
-                rs = HistorySaver::new(&cmd, &item).save()?;
+                HistorySaver::new(&cmd, &item).save()?;
                 self.mp.insert(cmd.clone(), item);
             }
         }
@@ -81,7 +95,7 @@ impl HistoryStore {
         if self.recent.len() > 200 {
             self.recent.remove(0);
         }
-        Ok(rs)
+        Ok(())
     }
 
     pub fn guess(&mut self, cmd: &str) -> bool {
@@ -191,7 +205,7 @@ impl HistorySaver {
     }
 
     //Currently just append to file and hope for the best.
-    pub fn save(&self) -> anyhow::Result<String> {
+    pub fn save(&self) -> anyhow::Result<()> {
         let a = SaveArray { item: vec![self] };
         let mut tdir = PathBuf::from(std::env::var("HOME")?);
         tdir.push(".config/rushell/history");
@@ -211,6 +225,6 @@ impl HistorySaver {
             .open(&tdir)?;
         write!(f, "{}", &s)?;
 
-        Ok(format!("Written to '{}'", tdir.display()))
+        Ok(())
     }
 }
