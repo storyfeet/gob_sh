@@ -36,8 +36,8 @@ pub fn do_event(e: Event, shell: &mut Shell, rt: &mut RT) -> anyhow::Result<Acti
 
 fn main() -> anyhow::Result<()> {
     ctrlc::set_handler(move || println!("Kill Signal")).ok();
-    let mut rt = stdout().into_raw_mode()?;
     let mut shell = Shell::new();
+    let mut rt = stdout().into_raw_mode()?;
 
     let mut init = std::path::PathBuf::from(std::env::var("HOME").unwrap_or("".to_string()));
     init.push(".config/rushell/init.rush");

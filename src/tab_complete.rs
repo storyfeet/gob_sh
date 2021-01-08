@@ -259,12 +259,15 @@ impl HistorySaver {
 
 pub fn load_history(months: u32, mp: &mut BTreeMap<String, HistoryItem>) {
     let (y, m) = year_month(SystemTime::now());
+    println!("Y={},m={}", y, m);
     let path = history_path();
 
-    for n in 0..months {
+    for n in 1..=months {
         let sub = months - n;
         let y2 = y - (sub as i32 / 12);
-        let m2 = (m + 12 - months as u32) % 12;
+        let m2 = ((m + 11 - sub as u32) % 12) + 1;
+        let p2 = on_year_month(&path, y2, m2);
+        println!("Loading :{}", p2.display());
 
         load_history_file(on_year_month(&path, y2, m2), mp).ok();
     }
