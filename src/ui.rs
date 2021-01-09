@@ -49,13 +49,15 @@ pub fn del_line(s: &mut String) {
     s.clear();
 }
 
-pub fn unprint(s: &str, _rt: &mut RT) {
+pub fn unprint(s: &str, _rt: &mut RT, del: bool) {
     let (t_width, _) = termion::terminal_size().unwrap_or((50, 50));
     let lcount = crate::ui::line_count(s, t_width as usize);
     if lcount > 0 {
         print!("{}", cursor::Up(lcount as u16));
     }
-    print!("\r{}", clear::AfterCursor,);
+    if del {
+        print!("\r{}", clear::AfterCursor,);
+    }
 }
 
 pub fn char_as_int(c: char) -> Option<usize> {

@@ -14,6 +14,7 @@ pub struct Prompt {
     pub options: Option<(usize, Vec<String>)>,
     pub message: Option<String>,
     pub line: String,
+    pub offset: Option<usize>,
 }
 
 impl Prompt {
@@ -25,6 +26,7 @@ impl Prompt {
             restore: None,
             line: String::new(),
             built: String::new(),
+            offset: None,
         }
     }
 
@@ -75,7 +77,7 @@ impl Prompt {
 
     pub fn unprint(&self, rt: &mut RT) {
         let stp = console::strip_ansi_codes(&self.built);
-        crate::ui::unprint(&stp, rt);
+        crate::ui::unprint(&stp, rt, true);
     }
 
     pub fn build_line<'a>(&'a self) -> (String, Option<String>) {
