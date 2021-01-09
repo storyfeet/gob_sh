@@ -124,7 +124,10 @@ impl Shell {
             Key::Char(c) => self.prompt.add_char(c, rt),
             Key::Backspace => self.prompt.del_char(rt),
             Key::Ctrl('h') => self.prompt.del_line(rt),
-            Key::Esc => self.prompt.esc(rt),
+            Key::Esc => {
+                self.prompt.esc(rt);
+                self.history.guesses = None;
+            }
             Key::Up => self.prompt.replace_line(self.history.up_recent(), rt),
             Key::Down => self.prompt.replace_line(self.history.down_recent(), rt),
             Key::Right => match self.history.guess(&self.prompt.line) {
@@ -132,8 +135,10 @@ impl Shell {
                 false => self.prompt.replace_line(None, rt),
             },
             Key::Left => {
-                self.history.guesses = None;
-                self.prompt.replace_line(None, rt);
+                if !self.prompt.left(rt) {
+                    self.history.guesses = None;
+                    self.prompt.replace_line(None, rt);
+                }
             }
             e => println!("{:?}", e),
         }

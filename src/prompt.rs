@@ -1,4 +1,6 @@
 //Manages carring all the messages to the user
+use crate::cursor::Cursor;
+use crate::ui;
 use crate::RT;
 use bogobble::traits::*;
 use std::fmt::Write;
@@ -13,8 +15,7 @@ pub struct Prompt {
     restore: Option<String>,
     pub options: Option<(usize, Vec<String>)>,
     pub message: Option<String>,
-    pub line: String,
-    pub offset: Option<usize>,
+    pub cursor: Option<Cursor>,
 }
 
 impl Prompt {
@@ -24,15 +25,20 @@ impl Prompt {
             options: None,
             message: None,
             restore: None,
-            line: String::new(),
             built: String::new(),
-            offset: None,
+            cursor: None,
         }
     }
 
     pub fn esc(&mut self, rt: &mut RT) {
         self.unprint(rt);
-        self.clear_help();
+        if self.options.is_some() {
+            self.clear_help();
+        } else {
+            if self.cursor.is_none() {
+                self.cursor = Some(Cursor::string_end(&self.line));
+            }
+        }
         self.print(rt);
     }
 
@@ -58,6 +64,7 @@ impl Prompt {
     pub fn clear_help(&mut self) {
         self.options = None;
         self.message = None;
+        self.restore = None;
     }
 
     pub fn reset(&mut self, pr_line: String, rt: &mut RT) {
@@ -66,61 +73,43 @@ impl Prompt {
     }
 
     pub fn print(&mut self, rt: &mut RT) {
-        self.build();
-        let mut pre = "";
-        for l in self.built.split("\n") {
-            print!("{}{}", pre, l);
-            pre = "\n\r";
-        }
+        let pass1 = self.build(&self.line, true);
+        ui::print(&pass1);
 
-        crate::ui::unprint(&self.built, rt, false);
+        ui::unprint(&pass1, rt, false);
+        self.built = match self.offset {
+            Some(n) => self.build(ui::del_n(&self.line, n), false),
+            None => self.build(&self.line, false),
+        };
+        ui::print(&self.built);
         rt.flush().ok();
     }
 
     pub fn unprint(&self, rt: &mut RT) {
-        crate::ui::unprint(&self.built, rt, true);
+        ui::unprint(&self.built, rt, true);
     }
 
-    pub fn build_line<'a>(&'a self) -> (String, Option<String>) {
-        match crate::partial::Lines.parse_s(&self.line) {
-            Ok(v) => {
-                let s = bogobble::partial::mark_list::mark_str(&v, &self.line)
-                    .expect("Marking out of String");
-                let res = format!("{}{}", s, color::Fg(color::Reset));
-                let res = res.replace("\n", "\n... ");
-                (res, None)
-            }
-            Err(e) => {
-                let res = format!(
-                    "{}{}{}",
-                    color::Fg(color::LightRed),
-                    &self.line,
-                    color::Fg(color::Reset),
-                );
-                let res = res.replace("\n", "\n... ");
-                (res, Some(e.to_string()))
-            }
-        }
-    }
-    pub fn build(&mut self) {
-        self.built.clear();
+    pub fn build(&self, line: &str, with_ops: bool) -> String {
+        let mut res = String::new();
         let (pwidth, _) = termion::terminal_size().unwrap_or((50, 50));
 
-        let (line, err) = self.build_line();
-        if let Some(e) = err {
-            self.message = Some(e);
-        }
+        let (line, err) = build_line(line);
 
-        if let Some(m) = &self.message {
-            write!(self.built, "[{}]\n\r", m).ok();
+        let mess = match err {
+            Some(e) => Some(e.to_string()),
+            None => self.message.clone(),
+        };
+
+        if let Some(m) = &mess {
+            write!(res, "[{}]\n\r", m).ok();
         }
-        self.built.push_str(&self.pr_line);
-        write!(self.built, "{}", line).ok();
-        if let Some((_, ops)) = &self.options {
+        res.push_str(&self.pr_line);
+        write!(res, "{}", line).ok();
+        if let (Some((_, ops)), true) = (&self.options, with_ops) {
             match ops.len() {
                 n if n <= 10 => {
                     for (n, o) in ops.iter().enumerate() {
-                        write!(self.built, "\n{}:  {}", n, o).ok();
+                        write!(res, "\n{}:  {}", n, o).ok();
                     }
                 }
                 _ => {
@@ -133,16 +122,17 @@ impl Prompt {
                             0 => "\n",
                             _ => "",
                         };
-                        write!(self.built, "{}{:0>2}:  {:20}", nl, n, s,).ok();
+                        write!(res, "{}{:0>2}:  {:20}", nl, n, s,).ok();
                     }
                 }
             }
         }
+        res
     }
     pub fn add_char(&mut self, c: char, rt: &mut RT) {
         self.unprint(rt);
         if let Some((pos, mut ops)) = self.options.take() {
-            if let Some(n) = crate::ui::char_as_int(c) {
+            if let Some(n) = ui::char_as_int(c) {
                 if ops.len() <= 10 {
                     match ops.get(n) {
                         Some(v) => {
@@ -172,14 +162,48 @@ impl Prompt {
     pub fn del_char(&mut self, rt: &mut RT) {
         self.unprint(rt);
         self.clear_help();
-        crate::ui::del_char(&mut self.line);
+        ui::del_char(&mut self.line);
         self.print(rt);
     }
 
     pub fn del_line(&mut self, rt: &mut RT) {
         self.unprint(rt);
         self.clear_help();
-        crate::ui::del_line(&mut self.line);
+        ui::del_line(&mut self.line);
         self.print(rt);
+    }
+
+    pub fn left(&mut self, rt: &mut RT) -> bool {
+        match self.offset {
+            Some(0) => true,
+            Some(n) => {
+                self.unprint(rt);
+                self.offset = Some(n - 1);
+                self.print(rt);
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
+pub fn build_line<'a>(l: &str) -> (String, Option<String>) {
+    match crate::partial::Lines.parse_s(l) {
+        Ok(v) => {
+            let s = bogobble::partial::mark_list::mark_str(&v, l).expect("Marking out of String");
+            let res = format!("{}{}", s, color::Fg(color::Reset));
+            let res = res.replace("\n", "\n... ");
+            (res, None)
+        }
+        Err(e) => {
+            let res = format!(
+                "{}{}{}",
+                color::Fg(color::LightRed),
+                l,
+                color::Fg(color::Reset),
+            );
+            let res = res.replace("\n", "\n... ");
+            (res, Some(e.to_string()))
+        }
     }
 }

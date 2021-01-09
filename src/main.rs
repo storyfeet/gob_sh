@@ -1,5 +1,6 @@
 mod args;
 mod channel;
+mod cursor;
 mod exec;
 mod parser;
 mod partial;
