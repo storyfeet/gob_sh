@@ -39,17 +39,21 @@ impl Shell {
 
     fn _tab_complete(&mut self) -> anyhow::Result<()> {
         let top = crate::partial::Lines
-            .parse_s(&self.prompt.line)
+            .parse_s(&self.prompt.cursor.s)
             .map_err(|e| e.strung())?;
         self.prompt.clear_help();
 
-        if let Some(a) = top.find_at_end(&self.prompt.line, |&i| i == Item::Arg) {
-            let s = a.on_str(&self.prompt.line);
+        let c_line = &self.prompt.cursor.s;
+
+        if let Some(a) = top.find_at_end(c_line, |&i| i == Item::Arg) {
+            let s = a.on_str(c_line);
 
             match crate::tab_complete::tab_complete_path(s) {
                 Complete::None => self.prompt.message = Some(format!("Could not complete '{}'", s)),
                 Complete::One(tc) => {
-                    self.prompt.line.replace_range(a.start.unwrap_or(0).., &tc);
+                    self.prompt
+                        .cursor
+                        .replace_range(a.start.unwrap_or(0).., &tc);
                 }
                 Complete::Many(v) => self.prompt.options = Some((a.start.unwrap_or(0), v)),
             }
@@ -58,11 +62,12 @@ impl Shell {
         Ok(())
     }
     pub fn on_enter(&mut self, rt: &mut RT) {
+        let c_line = &self.prompt.cursor.s;
         self.history.pos = None;
         self.history.guesses = None;
-        match parser::Lines.parse_s(&self.prompt.line) {
+        match parser::Lines.parse_s(c_line) {
             Ok(v) => {
-                let hist_r = self.history.push_command(self.prompt.line.clone());
+                let hist_r = self.history.push_command(c_line.clone());
 
                 rt.suspend_raw_mode().ok();
                 print!("\n\r");
@@ -130,7 +135,7 @@ impl Shell {
             }
             Key::Up => self.prompt.replace_line(self.history.up_recent(), rt),
             Key::Down => self.prompt.replace_line(self.history.down_recent(), rt),
-            Key::Right => match self.history.guess(&self.prompt.line) {
+            Key::Right => match self.history.guess(&self.prompt.cursor.s) {
                 true => self.prompt.replace_line(self.history.select_recent(0), rt),
                 false => self.prompt.replace_line(None, rt),
             },

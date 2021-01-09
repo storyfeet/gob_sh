@@ -12,10 +12,10 @@ use termion::color;
 pub struct Prompt {
     pr_line: String,
     built: String,
-    restore: Option<String>,
+    restore: Option<Cursor>,
     pub options: Option<(usize, Vec<String>)>,
     pub message: Option<String>,
-    pub cursor: Option<Cursor>,
+    pub cursor: Cursor,
 }
 
 impl Prompt {
@@ -26,34 +26,29 @@ impl Prompt {
             message: None,
             restore: None,
             built: String::new(),
-            cursor: None,
+            cursor: Cursor::at_end(String::new()),
         }
     }
 
     pub fn esc(&mut self, rt: &mut RT) {
         self.unprint(rt);
-        if self.options.is_some() {
-            self.clear_help();
-        } else {
-            if self.cursor.is_none() {
-                self.cursor = Some(Cursor::string_end(&self.line));
-            }
-        }
+        self.clear_help();
+        self.restore = None;
         self.print(rt);
     }
 
     pub fn replace_line(&mut self, line: Option<&String>, rt: &mut RT) {
         self.unprint(rt);
         self.clear_help();
-        let line = line.map(|l| l.clone());
-        match (&mut self.restore, line) {
-            (Some(_), Some(l)) => self.line = l,
-            (None, Some(mut l)) => {
-                std::mem::swap(&mut l, &mut self.line);
-                self.restore = Some(l);
+        let new_cursor = line.map(|l| Cursor::at_end(l.clone()));
+        match (&mut self.restore, new_cursor) {
+            (Some(_), Some(nc)) => self.cursor = nc,
+            (None, Some(mut nc)) => {
+                std::mem::swap(&mut nc, &mut self.cursor);
+                self.restore = Some(nc);
             }
             (Some(ref mut v), None) => {
-                std::mem::swap(&mut self.line, v);
+                std::mem::swap(&mut self.cursor, v);
                 self.restore = None;
             }
             _ => {} //self.line = "".to_string(),
@@ -64,7 +59,6 @@ impl Prompt {
     pub fn clear_help(&mut self) {
         self.options = None;
         self.message = None;
-        self.restore = None;
     }
 
     pub fn reset(&mut self, pr_line: String, rt: &mut RT) {
@@ -73,14 +67,11 @@ impl Prompt {
     }
 
     pub fn print(&mut self, rt: &mut RT) {
-        let pass1 = self.build(&self.line, true);
+        let pass1 = self.build(&self.cursor.s, true);
         ui::print(&pass1);
 
         ui::unprint(&pass1, rt, false);
-        self.built = match self.offset {
-            Some(n) => self.build(ui::del_n(&self.line, n), false),
-            None => self.build(&self.line, false),
-        };
+        self.built = self.build(self.cursor.on_s(), false);
         ui::print(&self.built);
         rt.flush().ok();
     }
@@ -136,7 +127,8 @@ impl Prompt {
                 if ops.len() <= 10 {
                     match ops.get(n) {
                         Some(v) => {
-                            self.line.replace_range(pos.., v);
+                            //TODO -- make so cursor moves with changes
+                            self.cursor.s.replace_range(pos.., v);
                             self.clear_help();
                         }
                         None => {
@@ -153,7 +145,7 @@ impl Prompt {
                 return;
             }
         }
-        self.line.push(c);
+        self.cursor.add_char(c);
         self.clear_help();
 
         self.print(rt);
@@ -162,28 +154,23 @@ impl Prompt {
     pub fn del_char(&mut self, rt: &mut RT) {
         self.unprint(rt);
         self.clear_help();
-        ui::del_char(&mut self.line);
+        self.cursor.del_char();
         self.print(rt);
     }
 
     pub fn del_line(&mut self, rt: &mut RT) {
         self.unprint(rt);
         self.clear_help();
-        ui::del_line(&mut self.line);
+        // TODOui::del_line(&mut self.line);
+        self.cursor.del_char();
         self.print(rt);
     }
 
     pub fn left(&mut self, rt: &mut RT) -> bool {
-        match self.offset {
-            Some(0) => true,
-            Some(n) => {
-                self.unprint(rt);
-                self.offset = Some(n - 1);
-                self.print(rt);
-                true
-            }
-            _ => false,
-        }
+        self.unprint(rt);
+        let r = self.cursor.left();
+        self.print(rt);
+        r
     }
 }
 
