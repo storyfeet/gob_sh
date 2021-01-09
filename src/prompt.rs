@@ -72,12 +72,13 @@ impl Prompt {
             print!("{}{}", pre, l);
             pre = "\n\r";
         }
+
+        crate::ui::unprint(&self.built, rt, false);
         rt.flush().ok();
     }
 
     pub fn unprint(&self, rt: &mut RT) {
-        let stp = console::strip_ansi_codes(&self.built);
-        crate::ui::unprint(&stp, rt, true);
+        crate::ui::unprint(&self.built, rt, true);
     }
 
     pub fn build_line<'a>(&'a self) -> (String, Option<String>) {
@@ -103,6 +104,7 @@ impl Prompt {
     }
     pub fn build(&mut self) {
         self.built.clear();
+        let (pwidth, _) = termion::terminal_size().unwrap_or((50, 50));
 
         let (line, err) = self.build_line();
         if let Some(e) = err {
@@ -127,7 +129,7 @@ impl Prompt {
                             Some(s) => s.to_string_lossy().to_string(),
                             None => o.to_string(),
                         };
-                        let nl = match n % 3 {
+                        let nl = match n % (pwidth as usize / 25) {
                             0 => "\n",
                             _ => "",
                         };

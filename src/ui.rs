@@ -50,13 +50,15 @@ pub fn del_line(s: &mut String) {
 }
 
 pub fn unprint(s: &str, _rt: &mut RT, del: bool) {
+    let s = console::strip_ansi_codes(s);
     let (t_width, _) = termion::terminal_size().unwrap_or((50, 50));
-    let lcount = crate::ui::line_count(s, t_width as usize);
+    let lcount = crate::ui::line_count(&s, t_width as usize);
     if lcount > 0 {
         print!("{}", cursor::Up(lcount as u16));
     }
+    print!("\r");
     if del {
-        print!("\r{}", clear::AfterCursor,);
+        print!("{}", clear::AfterCursor,);
     }
 }
 
