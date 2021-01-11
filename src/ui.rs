@@ -95,6 +95,25 @@ pub fn char_as_int(c: char) -> Option<usize> {
     }
 }
 
+pub fn char_left(s: &str, mut n: usize) -> Option<usize> {
+    while n > 0 {
+        n -= 1;
+        if s.get(n..).is_some() {
+            return Some(n);
+        }
+    }
+    None
+}
+pub fn char_right(s: &str, mut n: usize) -> Option<usize> {
+    while n < s.len() {
+        n += 1;
+        if s.get(n..).is_some() {
+            return Some(n);
+        }
+    }
+    return None;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

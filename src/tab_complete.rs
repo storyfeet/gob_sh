@@ -267,9 +267,14 @@ pub fn load_history(months: u32, mp: &mut BTreeMap<String, HistoryItem>) {
         let y2 = y - (sub as i32 / 12);
         let m2 = ((m + 11 - sub as u32) % 12) + 1;
         let p2 = on_year_month(&path, y2, m2);
-        println!("Loading :{}", p2.display());
 
-        load_history_file(on_year_month(&path, y2, m2), mp).ok();
+        if let Err(e) = load_history_file(on_year_month(&path, y2, m2), mp) {
+            println!(
+                "Could not load History file : '{}' because '{}'",
+                p2.display(),
+                e
+            );
+        }
     }
 }
 
