@@ -1,4 +1,5 @@
 //! Some options for statements to run, or persistent data
+use crate::cursor::Cursor;
 use crate::partial::Item;
 use crate::Action;
 use bogobble::traits::*;
@@ -127,20 +128,34 @@ impl Shell {
             Key::Char('\t') => self.tab_complete(rt),
 
             Key::Char(c) => self.prompt.add_char(c, rt),
-            Key::Backspace => self.prompt.del_char(rt),
-            Key::Ctrl('h') => self.prompt.del_line(rt),
+            Key::Backspace => self.prompt.do_cursor(rt, Cursor::backspace),
+            Key::Delete => self.prompt.do_cursor(rt, Cursor::del_char),
+            Key::Ctrl('h') => self.prompt.do_cursor(rt, Cursor::del_line),
             Key::Esc => {
                 self.prompt.esc(rt);
                 self.history.guesses = None;
             }
-            Key::Up => self.prompt.replace_line(self.history.up_recent(), rt),
-            Key::Down => self.prompt.replace_line(self.history.down_recent(), rt),
-            Key::Right => match self.history.guess(&self.prompt.cursor.s) {
-                true => self.prompt.replace_line(self.history.select_recent(0), rt),
-                false => self.prompt.replace_line(None, rt),
+            Key::Up => match self.prompt.do_cursor(rt, Cursor::up) {
+                false => self.prompt.replace_line(self.history.up_recent(), rt),
+                _ => {}
             },
+
+            Key::Down => match self.prompt.do_cursor(rt, Cursor::down) {
+                false => self.prompt.replace_line(self.history.down_recent(), rt),
+                _ => {}
+            },
+
+            Key::End => self.prompt.do_cursor(rt, Cursor::to_end),
+            Key::Right => {
+                if !self.prompt.do_cursor(rt, Cursor::right) {
+                    match self.history.guess(&self.prompt.cursor.s) {
+                        true => self.prompt.replace_line(self.history.select_recent(0), rt),
+                        false => self.prompt.replace_line(None, rt),
+                    }
+                }
+            }
             Key::Left => {
-                if !self.prompt.left(rt) {
+                if !self.prompt.do_cursor(rt, Cursor::left) {
                     self.history.guesses = None;
                     self.prompt.replace_line(None, rt);
                 }

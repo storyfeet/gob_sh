@@ -56,17 +56,6 @@ pub fn del_n(s: &str, n: usize) -> &str {
     ""
 }
 
-pub fn del_line(s: &mut String) {
-    let l = s.len();
-    for x in 1..l {
-        if let Some('\n') = s.as_str().get(l - x..).and_then(|s| s.chars().next()) {
-            s.replace_range(l - x.., "");
-            return;
-        }
-    }
-    s.clear();
-}
-
 pub fn print(s: &str) {
     let mut pre = "";
     for l in s.split("\n") {
@@ -93,25 +82,6 @@ pub fn char_as_int(c: char) -> Option<usize> {
         n if n >= '0' && n <= '9' => Some(n as usize - 48),
         _ => None,
     }
-}
-
-pub fn char_left(s: &str, mut n: usize) -> Option<usize> {
-    while n > 0 {
-        n -= 1;
-        if s.get(n..).is_some() {
-            return Some(n);
-        }
-    }
-    None
-}
-pub fn char_right(s: &str, mut n: usize) -> Option<usize> {
-    while n < s.len() {
-        n += 1;
-        if s.get(n..).is_some() {
-            return Some(n);
-        }
-    }
-    return None;
 }
 
 #[cfg(test)]

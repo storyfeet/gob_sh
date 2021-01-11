@@ -158,17 +158,9 @@ impl Prompt {
         self.print(rt);
     }
 
-    pub fn del_line(&mut self, rt: &mut RT) {
+    pub fn do_cursor<F: Fn(&mut Cursor) -> T, T>(&mut self, rt: &mut RT, f: F) -> T {
         self.unprint(rt);
-        self.clear_help();
-        // TODOui::del_line(&mut self.line);
-        self.cursor.del_char();
-        self.print(rt);
-    }
-
-    pub fn left(&mut self, rt: &mut RT) -> bool {
-        self.unprint(rt);
-        let r = self.cursor.left();
+        let r = f(&mut self.cursor);
         self.print(rt);
         r
     }

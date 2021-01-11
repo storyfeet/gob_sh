@@ -1,34 +1,17 @@
+use crate::str_util::CharStr;
+
 use std::cmp::Ordering;
 use std::ops::{Bound, RangeBounds};
 #[derive(Clone, Debug)]
 pub struct Cursor {
     pub s: String,
     index: usize,
-    line: usize,
-    col: usize,
-}
-
-macro_rules! lc {
-    ($c:expr,$line:expr,$col:expr) => {
-        match $c {
-            '\n' => {
-                $line += 1;
-                $col = 0;
-            }
-            _ => $col += 1,
-        }
-    };
 }
 
 impl Cursor {
     pub fn at_end(s: String) -> Self {
         let index = s.len();
-        let mut res = Cursor {
-            s,
-            line: 0,
-            col: 0,
-            index: index,
-        };
+        let mut res = Cursor { s, index: index };
         res.to_end();
         res
     }
@@ -45,58 +28,68 @@ impl Cursor {
     }
 
     pub fn to_end(&mut self) {
-        for c in self.s.chars() {
-            lc!(c, self.line, self.col)
-        }
         self.index = self.s.len();
     }
 
-    fn fix_index(&mut self) {
-        let mut line = 0;
-        let mut col = 0;
-        for (i, c) in self.s.char_indices() {
-            lc!(c, line, col);
-            if line == self.line && col == self.col {
-                self.index = i;
-                return;
-            }
+    pub fn up(&mut self) -> bool {
+        let this_start = match self.s.prev_match('\n', self.index) {
+            Some(n) => n,
+            None => return false,
+        };
+        let prev_start = self.s.prev_match('\n', this_start).unwrap_or(0);
+        let df = self.s.count_between(this_start, self.index).unwrap_or(1);
+        if let Some(n) = self.s.char_right_n_match(prev_start, df, '\n') {
+            self.index = n;
         }
+        true
+    }
+
+    pub fn down(&mut self) -> bool {
+        let next_start = match self.s.next_match('\n', self.index) {
+            Some(n) => n,
+            None => return false,
+        };
+        let this_start = self.s.prev_match('\n', self.index).unwrap_or(0);
+        let df = self.s.count_between(this_start, self.index).unwrap_or(1);
+        if let Some(n) = self.s.char_right_n_match(next_start, df, '\n') {
+            self.index = n;
+        }
+        true
     }
 
     pub fn left(&mut self) -> bool {
-        match self.col {
-            0 => {
-                if (self.line == 0) || (self.index == 0) {
-                    self.line = 0;
-                    self.index = 0;
-                    return false;
-                }
-                self.line -= 1;
-                self.fix_index();
+        match self.s.char_left(self.index) {
+            Some(n) => {
+                self.index = n;
                 true
             }
-            _ => {
-                self.col -= 1;
-                for _ in 0..self.index {
-                    self.index -= 1;
-                    if self.s.get(self.index..).is_some() {
-                        return true;
-                    }
-                }
-                self.index = 0;
+            None => false,
+        }
+    }
+
+    pub fn right(&mut self) -> bool {
+        match self.s.char_right(self.index) {
+            Some(n) => {
+                self.index = n;
                 true
             }
+            None => false,
         }
     }
 
     pub fn add_char(&mut self, c: char) {
         let mut sc = String::new();
-        lc!(c, self.line, self.col);
         sc.push(c);
         self.s.replace_range(self.index..self.index, &sc);
         self.index += sc.len();
         while self.s.get(self.index..).is_none() && self.index > 0 {
             self.index -= 1;
+        }
+    }
+
+    pub fn backspace(&mut self) {
+        if self.left() {
+            self.del_char();
         }
     }
 
@@ -107,7 +100,13 @@ impl Cursor {
             None => return,
         }
         self.s.replace_range(self.index..self.index + s.len(), "");
-        self.utf8_hit(self.index - 1);
+    }
+
+    pub fn del_line(&mut self) {
+        let left = self.s.prev_match('\n', self.index).unwrap_or(0);
+        let right = self.s.next_match('\n', self.index).unwrap_or(self.s.len());
+        self.s.replace_range(left..right, "");
+        self.index = left;
     }
 
     pub fn replace_range<R: RangeBounds<usize>>(&mut self, r: R, s2: &str) {

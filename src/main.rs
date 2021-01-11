@@ -8,6 +8,7 @@ mod prompt;
 mod shell;
 mod statement;
 mod store;
+mod str_util;
 mod tab_complete;
 mod ui;
 
