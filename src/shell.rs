@@ -90,7 +90,7 @@ impl Shell {
                 }
                 self.prompt.print(rt);
             }
-            Err(_) => self.do_print(rt, |sh| sh.prompt.add_char('\n', rt)),
+            Err(_) => self.do_print(rt, |sh| sh.prompt.add_char('\n')),
         }
     }
 
@@ -131,7 +131,7 @@ impl Shell {
                     .expect("Could not complete tabs");
             }
 
-            Key::Char(c) => self.prompt.add_char(c, rt),
+            Key::Char(c) => self.prompt.do_print(rt, |p| p.add_char(c)),
             Key::Backspace => self.prompt.do_cursor(rt, Cursor::backspace),
             Key::Delete => self.prompt.do_cursor(rt, Cursor::del_char),
             Key::Ctrl('h') => self.prompt.do_cursor(rt, Cursor::del_line),
@@ -140,33 +140,52 @@ impl Shell {
                 self.history.guesses = None;
             }
             Key::Up => match self.prompt.do_cursor(rt, Cursor::up) {
-                false => self.prompt.replace_line(self.history.up_recent(), rt),
+                false => self.do_print(rt, |p| p.prompt.replace_line(p.history.up_recent())),
                 _ => {}
             },
 
             Key::Down => match self.prompt.do_cursor(rt, Cursor::down) {
-                false => self.prompt.replace_line(self.history.down_recent(), rt),
+                false => self.do_print(rt, |p| p.prompt.replace_line(p.history.down_recent())),
                 _ => {}
             },
 
-            Key::End => self.prompt.do_cursor(rt, Cursor::to_end),
+            Key::End => self.prompt.do_cursor(rt, Cursor::to_line_end),
             Key::Right => {
                 if !self.prompt.do_cursor(rt, Cursor::right) {
                     match self.history.guess(&self.prompt.cursor.s) {
-                        true => self.prompt.replace_line(self.history.select_recent(0), rt),
-                        false => self.prompt.replace_line(None, rt),
+                        true => {
+                            self.do_print(rt, |s| s.prompt.replace_line(s.history.select_recent(0)))
+                        }
+                        false => self.prompt.do_print(rt, |p| p.replace_line(None)),
                     }
                 }
             }
             Key::Left => {
                 if !self.prompt.do_cursor(rt, Cursor::left) {
                     self.history.guesses = None;
-                    self.prompt.replace_line(None, rt);
+                    self.prompt.do_print(rt, |p| p.replace_line(None));
                 }
             }
-            e => println!("{:?}", e),
+            e => self
+                .prompt
+                .do_print(rt, |p| p.message = Some(format!("{:?}", e))),
         }
 
         Ok(Action::Cont)
+    }
+
+    pub fn do_unsupported(&mut self, b: &[u8], rt: &mut RT) -> anyhow::Result<()> {
+        match b {
+            //Ctrl Up:
+            [27, 91, 49, 59, 53, 65] => {
+                self.do_print(rt, |p| p.prompt.replace_line(p.history.up_recent()))
+            }
+            //Ctrl End
+            [27, 91, 49, 59, 53, 70] => self.prompt.do_cursor(rt, Cursor::to_end),
+            c => self.prompt.do_print(rt, |p| {
+                p.message = Some(format!("Unsupported Action {:?}", c))
+            }),
+        }
+        Ok(())
     }
 }

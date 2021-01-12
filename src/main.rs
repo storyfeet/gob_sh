@@ -30,7 +30,7 @@ pub enum Action {
 pub fn do_event(e: Event, shell: &mut Shell, rt: &mut RT) -> anyhow::Result<Action> {
     match e {
         Event::Key(k) => return shell.do_key(k, rt),
-        Event::Unsupported(c_up) if c_up == [27, 91, 49, 59, 53, 65] => println!("Ctrl UP"),
+        Event::Unsupported(e) => shell.do_unsupported(&e, rt)?,
         e => print!("Event {:?}\n\r", e),
     }
     Ok(Action::Cont)

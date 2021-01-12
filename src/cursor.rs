@@ -1,6 +1,5 @@
 use crate::str_util::CharStr;
 
-use std::cmp::Ordering;
 use std::ops::{Bound, RangeBounds};
 #[derive(Clone, Debug)]
 pub struct Cursor {
@@ -32,6 +31,10 @@ impl Cursor {
             Some(n) => &self.s[..n],
             None => &self.s,
         }
+    }
+
+    pub fn to_line_end(&mut self) {
+        self.index = self.s.next_match("\n", self.index).unwrap_or(self.s.len());
     }
 
     pub fn to_end(&mut self) {
@@ -75,13 +78,14 @@ impl Cursor {
     }
 
     pub fn right(&mut self) -> bool {
-        match self.s.char_right(self.index) {
-            Some(n) => {
-                self.index = n;
-                true
-            }
-            None => false,
+        if self.index == self.s.len() {
+            return false;
         }
+        match self.s.char_right(self.index) {
+            Some(n) => self.index = n,
+            None => self.index = self.s.len(),
+        }
+        true
     }
 
     pub fn add_char(&mut self, c: char) {
@@ -124,30 +128,5 @@ impl Cursor {
             _ => self.index = s2.len(),
         }
         self.s.replace_range(r, s2);
-    }
-}
-
-pub fn rel_bound<R: RangeBounds<usize>>(n: usize, r: &R) -> Ordering {
-    match r.start_bound() {
-        Bound::Included(lb) => match n < *lb {
-            true => return Ordering::Less,
-            _ => {}
-        },
-        Bound::Excluded(lb) => match n <= *lb {
-            true => return Ordering::Less,
-            _ => {}
-        },
-        _ => {}
-    }
-    match r.end_bound() {
-        Bound::Included(lb) => match n > *lb {
-            true => Ordering::Greater,
-            _ => Ordering::Equal,
-        },
-        Bound::Excluded(lb) => match n >= *lb {
-            true => return Ordering::Greater,
-            _ => Ordering::Equal,
-        },
-        _ => Ordering::Equal,
     }
 }

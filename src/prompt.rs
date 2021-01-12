@@ -37,8 +37,7 @@ impl Prompt {
         self.print(rt);
     }
 
-    pub fn replace_line(&mut self, line: Option<&String>, rt: &mut RT) {
-        self.unprint(rt);
+    pub fn replace_line(&mut self, line: Option<&String>) {
         self.clear_help();
         let new_cursor = line.map(|l| Cursor::at_end(l.clone()));
         match (&mut self.restore, new_cursor) {
@@ -53,7 +52,6 @@ impl Prompt {
             }
             _ => {} //self.line = "".to_string(),
         }
-        self.print(rt);
     }
 
     pub fn clear_help(&mut self) {
@@ -119,7 +117,7 @@ impl Prompt {
         }
         res
     }
-    pub fn add_char(&mut self, c: char, rt: &mut RT) {
+    pub fn add_char(&mut self, c: char) {
         if let Some((pos, mut ops)) = self.options.take() {
             if let Some(n) = ui::char_as_int(c) {
                 if ops.len() <= 10 {
@@ -139,7 +137,6 @@ impl Prompt {
                     ops = ops.into_iter().skip(n * 10).take(10).collect();
                     self.options = Some((pos, ops))
                 }
-                self.print(rt);
                 return;
             }
         }
@@ -147,11 +144,16 @@ impl Prompt {
         self.clear_help();
     }
 
-    pub fn del_char(&mut self, rt: &mut RT) {
-        self.unprint(rt);
+    pub fn del_char(&mut self) {
         self.clear_help();
         self.cursor.del_char();
+    }
+
+    pub fn do_print<F: Fn(&mut Prompt) -> T, T>(&mut self, rt: &mut RT, f: F) -> T {
+        self.unprint(rt);
+        let r = f(self);
         self.print(rt);
+        r
     }
 
     pub fn do_cursor<F: Fn(&mut Cursor) -> T, T>(&mut self, rt: &mut RT, f: F) -> T {
