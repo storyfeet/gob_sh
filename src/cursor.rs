@@ -27,6 +27,13 @@ impl Cursor {
         &self.s[..self.index]
     }
 
+    pub fn on_to_space(&self) -> &str {
+        match self.s.next_match(" \n;", self.index) {
+            Some(n) => &self.s[..n],
+            None => &self.s,
+        }
+    }
+
     pub fn to_end(&mut self) {
         self.index = self.s.len();
     }
@@ -110,19 +117,13 @@ impl Cursor {
     }
 
     pub fn replace_range<R: RangeBounds<usize>>(&mut self, r: R, s2: &str) {
-        let len = self.s.len();
+        //let len = self.s.len();
 
-        let fit = rel_bound(self.index, &r);
-        self.s.replace_range(r, s2);
-        match fit {
-            Ordering::Greater => {
-                self.utf8_hit(self.index + len - self.s.len());
-            }
-            Ordering::Equal => {
-                self.utf8_hit(self.index);
-            }
-            Ordering::Less => {}
+        match r.start_bound() {
+            Bound::Included(n) | Bound::Excluded(n) => self.index = *n + s2.len(),
+            _ => self.index = s2.len(),
         }
+        self.s.replace_range(r, s2);
     }
 }
 

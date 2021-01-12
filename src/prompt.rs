@@ -2,7 +2,7 @@
 use crate::cursor::Cursor;
 use crate::ui;
 use crate::RT;
-use bogobble::traits::*;
+use bogobble::{partial::ranger::Ranger, traits::*};
 use std::fmt::Write;
 use std::io::Write as IWrite;
 use std::path::PathBuf;
@@ -13,7 +13,7 @@ pub struct Prompt {
     pr_line: String,
     built: String,
     restore: Option<Cursor>,
-    pub options: Option<(usize, Vec<String>)>,
+    pub options: Option<(Ranger, Vec<String>)>,
     pub message: Option<String>,
     pub cursor: Cursor,
 }
@@ -68,10 +68,9 @@ impl Prompt {
 
     pub fn print(&mut self, rt: &mut RT) {
         let pass1 = self.build(&self.cursor.s, true);
-        ui::print(&pass1);
-
-        ui::unprint(&pass1, rt, false);
         self.built = self.build(self.cursor.on_s(), false);
+        ui::print(&pass1);
+        ui::unprint(&pass1, rt, false);
         ui::print(&self.built);
         rt.flush().ok();
     }
@@ -121,14 +120,13 @@ impl Prompt {
         res
     }
     pub fn add_char(&mut self, c: char, rt: &mut RT) {
-        self.unprint(rt);
         if let Some((pos, mut ops)) = self.options.take() {
             if let Some(n) = ui::char_as_int(c) {
                 if ops.len() <= 10 {
                     match ops.get(n) {
                         Some(v) => {
                             //TODO -- make so cursor moves with changes
-                            self.cursor.s.replace_range(pos.., v);
+                            self.cursor.replace_range(pos, v);
                             self.clear_help();
                         }
                         None => {
@@ -147,8 +145,6 @@ impl Prompt {
         }
         self.cursor.add_char(c);
         self.clear_help();
-
-        self.print(rt);
     }
 
     pub fn del_char(&mut self, rt: &mut RT) {

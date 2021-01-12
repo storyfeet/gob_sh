@@ -48,20 +48,20 @@ pub trait CharStr {
         self.get_i(n).and_then(|n| n.chars().next())
     }
 
-    fn prev_match(&self, target: char, mut n: usize) -> Option<usize> {
+    fn prev_match<C: CharBool>(&self, target: C, mut n: usize) -> Option<usize> {
         while n > 0 {
             n -= 1;
             match self.char_at(n) {
-                Some(c) if c == target => return Some(n),
+                Some(c) if target.char_bool(c) => return Some(n),
                 _ => {}
             }
         }
         None
     }
 
-    fn next_match(&self, target: char, n: usize) -> Option<usize> {
+    fn next_match<C: CharBool>(&self, target: C, n: usize) -> Option<usize> {
         for (i, c) in self.get_i(n)?.char_indices() {
-            if c == target {
+            if target.char_bool(c) {
                 return Some(n + i);
             }
         }

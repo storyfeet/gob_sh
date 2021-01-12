@@ -32,19 +32,20 @@ impl Shell {
         }
     }
 
-    pub fn tab_complete(&mut self, rt: &mut RT) {
+    pub fn do_print<T, F: Fn(&mut Self) -> T>(&mut self, rt: &mut RT, f: F) -> T {
         self.prompt.unprint(rt);
-        self._tab_complete().ok();
+        let r = f(self);
         self.prompt.print(rt);
+        r
     }
 
-    fn _tab_complete(&mut self) -> anyhow::Result<()> {
-        let top = crate::partial::Lines
-            .parse_s(&self.prompt.cursor.s)
-            .map_err(|e| e.strung())?;
+    fn tab_complete(&mut self) -> anyhow::Result<()> {
         self.prompt.clear_help();
-
-        let c_line = &self.prompt.cursor.s;
+        let c_line = &self.prompt.cursor.on_to_space();
+        let clen = c_line.len();
+        let top = crate::partial::Lines
+            .parse_s(c_line)
+            .map_err(|e| e.strung())?;
 
         if let Some(a) = top.find_at_end(c_line, |&i| i == Item::Arg) {
             let s = a.on_str(c_line);
@@ -54,9 +55,9 @@ impl Shell {
                 Complete::One(tc) => {
                     self.prompt
                         .cursor
-                        .replace_range(a.start.unwrap_or(0).., &tc);
+                        .replace_range(a.start.unwrap_or(0)..clen, &tc);
                 }
-                Complete::Many(v) => self.prompt.options = Some((a.start.unwrap_or(0), v)),
+                Complete::Many(v) => self.prompt.options = Some((a.range().with_end(clen), v)),
             }
         }
 
@@ -89,7 +90,7 @@ impl Shell {
                 }
                 self.prompt.print(rt);
             }
-            Err(_) => self.prompt.add_char('\n', rt),
+            Err(_) => self.do_print(rt, |sh| sh.prompt.add_char('\n', rt)),
         }
     }
 
@@ -125,7 +126,10 @@ impl Shell {
         match k {
             Key::Ctrl('d') => return Ok(Action::Quit),
             Key::Char('\n') => self.on_enter(rt),
-            Key::Char('\t') => self.tab_complete(rt),
+            Key::Char('\t') => {
+                self.do_print(rt, Shell::tab_complete)
+                    .expect("Could not complete tabs");
+            }
 
             Key::Char(c) => self.prompt.add_char(c, rt),
             Key::Backspace => self.prompt.do_cursor(rt, Cursor::backspace),
