@@ -129,7 +129,6 @@ impl Shell {
             Key::Ctrl('d') => return Ok(Action::Quit),
             Key::Char('\n') => self.on_enter(rt),
             Key::Char('\t') => self.do_print(rt, Shell::tab_complete),
-
             Key::Char(c) => self.prompt.do_print(rt, |p| p.add_char(c)),
             Key::Backspace => self.prompt.do_cursor(rt, Cursor::backspace),
             Key::Delete => self.prompt.do_cursor(rt, Cursor::del_char),
