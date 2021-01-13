@@ -50,6 +50,8 @@ impl Args {
 pub enum Arg {
     RawString(String),
     StringLit(String),
+    HomePath(String),
+    HomeExpr(Vec<Arg>),
     StringExpr(Vec<Arg>),
     Var(String),
     Command(Exec),
@@ -67,6 +69,17 @@ impl Arg {
                     s.push_str(&a.run(sets)?.to_string());
                 }
                 Ok(Data::Str(s.to_string()))
+            }
+            Arg::HomeExpr(v) => {
+                let mut hp = std::env::var("HOME").unwrap_or(String::new());
+                for a in v {
+                    hp.push_str(&a.run(sets)?.to_string());
+                }
+                Ok(Data::Str(hp))
+            }
+            Arg::HomePath(s) => {
+                let hp = std::env::var("HOME").unwrap_or(String::new());
+                Ok(Data::Str(format!("{}{}", hp, s)))
             }
             Arg::Var(name) => sets.get(name).e_str("No Var by that name"),
             Arg::Command(ex) => {

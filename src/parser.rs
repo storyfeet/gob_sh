@@ -104,6 +104,8 @@ parser! {(QuotedString->Arg)
 
 parser! { (ArgP->Arg)
     or!(
+        ("~",keyword(maybe(LitString))).map(|(_,s)|Arg::HomePath(s.unwrap_or(String::new()))),
+        ("~",plus(StringPart)).map(|(_,v)| Arg::HomeExpr(v)),
         r_hash.map(|s|Arg::RawString(s) ) ,
         plus(StringPart).map(|v| match v.len(){
             1 => v[0].clone(),
