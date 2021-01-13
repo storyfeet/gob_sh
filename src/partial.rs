@@ -148,7 +148,10 @@ pub fn p_r_hash<'a>(it: &PIter<'a>) -> ParseRes<'a, PT> {
         }
     };
 
-    Any.p_until(sym(("\"", "#".exact(hlen))), Item::String)
-        .parse(&it2)
-        .map_v(move |(q, h)| pt.clone().push(q).push(h))
+    Any.p_until(
+        or!(sym(("\"", "#".exact(hlen))), tpos(EOI, Item::String)),
+        Item::String,
+    )
+    .parse(&it2)
+    .map_v(move |(q, h)| pt.clone().push(q).push(h))
 }
