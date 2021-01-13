@@ -81,14 +81,9 @@ impl Prompt {
         let mut res = String::new();
         let (pwidth, _) = termion::terminal_size().unwrap_or((50, 50));
 
-        let (line, err) = build_line(line);
+        let line = build_line(line);
 
-        let mess = match err {
-            Some(e) => Some(e.to_string()),
-            None => self.message.clone(),
-        };
-
-        if let Some(m) = &mess {
+        if let Some(m) = &self.message {
             write!(res, "[{}]\n\r", m).ok();
         }
         res.push_str(&self.pr_line);
@@ -164,23 +159,30 @@ impl Prompt {
     }
 }
 
-pub fn build_line<'a>(l: &str) -> (String, Option<String>) {
+pub fn build_line<'a>(l: &str) -> String {
     match crate::partial::Lines.parse_s(l) {
         Ok(v) => {
             let s = bogobble::partial::mark_list::mark_str(&v, l).expect("Marking out of String");
             let res = format!("{}{}", s, color::Fg(color::Reset));
             let res = res.replace("\n", "\n... ");
-            (res, None)
+            res
         }
-        Err(e) => {
-            let res = format!(
+        Err(e) => match e.index {
+            Some(0) | None => format!(
                 "{}{}{}",
                 color::Fg(color::LightRed),
                 l,
                 color::Fg(color::Reset),
-            );
-            let res = res.replace("\n", "\n... ");
-            (res, Some(e.to_string()))
-        }
+            )
+            .replace("\n", "\n... "),
+            Some(n) => format!(
+                "{}{}{}{}",
+                build_line(&l[0..n]),
+                color::Fg(color::LightRed),
+                &l[n..],
+                color::Fg(color::Reset)
+            )
+            .replace("\n", "\n..."),
+        },
     }
 }
