@@ -12,6 +12,7 @@ pub enum Item {
     Symbol,
     Redirect,
     Ident,
+    Path,
     Exec,
     Esc,
     Lit,
@@ -30,7 +31,7 @@ impl Display for Item {
             Item::Keyword => write!(f, "{}", color::Fg(color::Yellow)),
             Item::Statement => write!(f, "{}", color::Fg(color::LightMagenta)),
             Item::Symbol => write!(f, "{}", color::Fg(color::Blue)),
-            Item::Ident => write!(f, "{}", color::Fg(color::White)),
+            Item::Ident | Item::Path => write!(f, "{}", color::Fg(color::Reset)),
             Item::String => write!(f, "{}", color::Fg(color::LightGreen)),
             Item::Lit => write!(f, "{}", color::Fg(color::LightYellow)),
             Item::Esc => write!(f, "{}", color::Fg(color::LightBlue)),
@@ -85,8 +86,11 @@ parser! {(PConnection->PT)
     p_list!((Item::Exec) ExChannel,ExTarget)
 }
 
+parser! {(Path->PT)
+    tpos((maybe("~"),p_plus(or_ig!("\\ ",("/._",Alpha,NumDigit).iplus()))),Item::Path)
+}
 parser! {(PExec->PT)
-    p_list!((Item::Exec) tpos(common::Ident,Item::Command) , Args,pmaybe(ws_(PConnection),Item::Exec))
+    p_list!((Item::Exec) tpos(Path,Item::Command) , Args,pmaybe(ws_(PConnection),Item::Exec))
 }
 
 parser! {(Args -> PT)

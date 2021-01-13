@@ -4,6 +4,10 @@ use crate::exec::{Connection, Exec};
 use crate::statement::Statement as Stt;
 use bogobble::*;
 
+parser! {(Path->String)
+    string((maybe("~"),plus(or_ig!("\\ ",("/._",Alpha,NumDigit).iplus()))))
+}
+
 parser! {(End->())
     ws_(or_ig!("\n;".one(),EOI))
 }
@@ -47,7 +51,7 @@ parser! {(PConnection->Connection)
 }
 
 parser! {(PExec->Exec)
-    (common::Ident , Args,maybe(ws_(PConnection))).map(|(command,args,conn)|Exec{command,args,conn})
+    (Path , Args,maybe(ws_(PConnection))).map(|(command,args,conn)|Exec{command,args,conn})
 }
 
 parser! {(Args -> crate::args::Args)

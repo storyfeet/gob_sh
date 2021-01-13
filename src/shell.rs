@@ -39,13 +39,17 @@ impl Shell {
         r
     }
 
-    fn tab_complete(&mut self) -> anyhow::Result<()> {
+    fn tab_complete(&mut self) {
         self.prompt.clear_help();
         let c_line = &self.prompt.cursor.on_to_space();
         let clen = c_line.len();
-        let top = crate::partial::Lines
-            .parse_s(c_line)
-            .map_err(|e| e.strung())?;
+        let top = match crate::partial::Lines.parse_s(c_line) {
+            Ok(t) => t,
+            Err(e) => {
+                self.prompt.message = Some(format!("{}", e));
+                return;
+            }
+        };
 
         if let Some(a) = top.find_at_end(c_line, |&i| i == Item::Arg) {
             let s = a.on_str(c_line);
@@ -60,8 +64,6 @@ impl Shell {
                 Complete::Many(v) => self.prompt.options = Some((a.range().with_end(clen), v)),
             }
         }
-
-        Ok(())
     }
     pub fn on_enter(&mut self, rt: &mut RT) {
         let c_line = &self.prompt.cursor.s;
@@ -126,10 +128,7 @@ impl Shell {
         match k {
             Key::Ctrl('d') => return Ok(Action::Quit),
             Key::Char('\n') => self.on_enter(rt),
-            Key::Char('\t') => {
-                self.do_print(rt, Shell::tab_complete)
-                    .expect("Could not complete tabs");
-            }
+            Key::Char('\t') => self.do_print(rt, Shell::tab_complete),
 
             Key::Char(c) => self.prompt.do_print(rt, |p| p.add_char(c)),
             Key::Backspace => self.prompt.do_cursor(rt, Cursor::backspace),
