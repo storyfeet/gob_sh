@@ -95,6 +95,16 @@ impl HistoryStore {
             }
         }
 
+        //Unstable self.recent.drain_filter(|i| i != cmd);
+        let mut i = 0;
+        while i < self.recent.len() {
+            if self.recent[i] == cmd {
+                self.recent.remove(i);
+            } else {
+                i += 1;
+            }
+        }
+
         self.recent.push(cmd);
         if self.recent.len() > 200 {
             self.recent.remove(0);
