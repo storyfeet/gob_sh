@@ -22,6 +22,7 @@ pub enum Item {
     Args,
     String,
     Quoted,
+    Expr,
     End,
 }
 
@@ -78,6 +79,14 @@ parser! {(Statement->PT)
     )
 }
 
+parser! {(ExprLeft ->PT)
+    p_list!((Item::Expr) PExec,ws_(pmaybe(p_list!((Item::Command) ExChannel,sym(">"),pmaybe(sym(">"),Item::Symbol),ws_(ArgP)),Item::Command)))
+}
+
+parser! {(ExprRight -> PT)
+    p_list!((Item::Expr) ExprLeft,pmaybe(ws_(sym(or("&&","||"))),Item::Symbol),wn_(ExprRight))
+}
+
 parser! {(ExTarget->PT)
      p_list!((Item::Exec) sym("|"),ws_(PExec))
 }
@@ -106,7 +115,7 @@ parser! { (QuotedLitString->PT)
 
 parser! { (LitString->PT)
     vpos(p_plus(or!(
-            tpos(not("$|^{}()[]\\\" \n\t<>;").plus(),Item::String),
+            tpos(not("&$|^{}()[]\\\" \n\t<>;").plus(),Item::String),
             tpos(("\\",or_ig!(Any.one(),EOI)),Item::Esc),
     )),Item::String)
 }

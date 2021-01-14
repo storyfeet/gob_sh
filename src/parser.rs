@@ -1,6 +1,7 @@
 use crate::args::Arg;
 use crate::channel::Channel;
 use crate::exec::{Connection, Exec};
+use crate::expr::Expr;
 use crate::statement::Statement as Stt;
 use bogobble::*;
 
@@ -34,12 +35,27 @@ parser! {(Statement->Stt)
         (keyword("let"),plus(ws_(common::Ident)),ws_("="),Args).map(|(_,ids,_,args)|Stt::Let(ids,args)),
         (keyword("export"),plus(ws_(common::Ident)),ws_("="),Args).map(|(_,ids,_,args)|Stt::Export(ids,args)),
         (keyword("cd"),ws_(ArgP)).map(|(_,a)|Stt::Cd(a)),
-        (PExec,ws_(maybe((ExChannel,">",exists(">"),ws_(ArgP))))).map(|(exec,wop)|{
-            match wop {
-                Some((chan,_,append,filename))=>Stt::Write{exec,chan,append,filename},
-                None=>Stt::Exec(exec),
-            }})
+        ExprRight.map(|e|Stt::Expr(e)),
     )
+}
+
+parser! {(ExprLeft ->Expr)
+    (PExec,ws_(maybe((ExChannel,">",exists(">"),ws_(ArgP))))).map(|(exec,wop)|{
+        match wop {
+            Some((chan,_,append,filename))=>Expr::Write{exec,chan,append,filename},
+            None=>Expr::Exec(exec),
+        }})
+
+}
+parser! {(ExprRight -> Expr)
+    (ExprLeft,maybe((ws_(or("&&","||")),wn_(ExprRight)))).map(|(lt,op)|{
+        match op {
+            Some(("&&",rt))=>Expr::And(Box::new(lt),Box::new(rt)),
+            Some(("||",rt))=>Expr::Or(Box::new(lt),Box::new(rt)),
+            _=>lt,
+        }
+
+    })
 }
 
 parser! {(ExTarget->Exec)
@@ -70,7 +86,7 @@ parser! { (QuotedLitString->String)
 
 parser! { (LitString->String)
     strings_plus(or!(
-            string(not("$|^{}()[]\\\" \n\t<>;").plus()),
+            string(not("&$|^{}()[]\\\" \n\t<>;").plus()),
             "\\n".map(|_|"\n".to_string()),
             "\\t".map(|_|"\t".to_string()),
              ("\\",Any.one()).map(|(_,c)| {let mut s=String::new(); s.push(c);s}),

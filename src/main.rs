@@ -2,6 +2,7 @@ mod args;
 mod channel;
 mod cursor;
 mod exec;
+mod expr;
 mod parser;
 mod partial;
 mod prompt;
