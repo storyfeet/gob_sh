@@ -10,7 +10,7 @@ pub enum Item {
     Keyword,
     Statement,
     Symbol,
-    Redirect,
+    //    Redirect,
     Ident,
     Path,
     Exec,
@@ -72,10 +72,7 @@ parser! {(Statement->PT)
         p_list!((Item::Statement) kw("let"),tpos(p_plus(ws_(common::Ident)),Item::Ident),sym(ws_("=")),Args),
         p_list!((Item::Statement) kw("export"),tpos(p_plus(ws_(common::Ident)),Item::Ident),sym(ws_("=")),Args),
         p_list!((Item::Statement) kw("cd"),ws_(ArgP)),
-        p_list!((Item::Statement) PExec,ws_(pmaybe(
-                    p_list!((Item::Redirect) ExChannel,sym(or!(">>",">")),ws_(ArgP)),
-                    Item::Redirect,
-                )))
+        ExprRight,
     )
 }
 
@@ -84,7 +81,11 @@ parser! {(ExprLeft ->PT)
 }
 
 parser! {(ExprRight -> PT)
-    p_list!((Item::Expr) ExprLeft,pmaybe(ws_(sym(or("&&","||"))),Item::Symbol),wn_(ExprRight))
+    p_list!(
+        (Item::Expr)
+        ExprLeft,
+        pmaybe(ws_(sym(or("&&","||"))).merge(Item::Expr,wn_(ExprRight)),Item::Expr),
+    )
 }
 
 parser! {(ExTarget->PT)
@@ -99,7 +100,8 @@ parser! {(Path->PT)
     tpos((maybe("~"),p_plus(or_ig!("\\ ",("/._",Alpha,NumDigit).iplus()))),Item::Path)
 }
 parser! {(PExec->PT)
-    p_list!((Item::Exec) tpos(Path,Item::Command) , Args,pmaybe(ws_(PConnection),Item::Exec))
+    tpos(Path,Item::Command).merge(Item::Command,Args).opush(maybe(ws_(PConnection)))
+    //p_list!((Item::Exec) tpos(Path,Item::Command) , Args,maybe(ws_(PConnection)))
 }
 
 parser! {(Args -> PT)
