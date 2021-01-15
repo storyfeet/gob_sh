@@ -73,6 +73,12 @@ impl Prompt {
         rt.flush().ok();
     }
 
+    pub fn print_end(&mut self, rt: &mut RT) {
+        self.built = self.build(&self.cursor.s, false);
+        ui::print(&self.built);
+        rt.flush().ok();
+    }
+
     pub fn unprint(&self, rt: &mut RT) {
         ui::unprint(&self.built, rt, true);
     }

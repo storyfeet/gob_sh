@@ -8,6 +8,11 @@ pub enum Statement {
     Let(Vec<String>, Args),
     Export(Vec<String>, Args),
     Cd(Arg),
+    For {
+        vars: Vec<String>,
+        args: Args,
+        block: Vec<Statement>,
+    },
 }
 
 impl Statement {
@@ -50,6 +55,28 @@ impl Statement {
 
                 std::env::set_var("PWD", std::env::current_dir()?);
                 Ok(true)
+            }
+            Statement::For { vars, args, block } => {
+                let ag = args.run(s)?;
+                let mut it = ag.into_iter();
+                loop {
+                    s.push();
+                    for vn in vars {
+                        let nx = match it.next() {
+                            Some(n) => n,
+                            None => {
+                                s.pop();
+                                return Ok(true);
+                            }
+                        };
+                        s.set(vn.to_string(), Data::Str(nx.clone()));
+                    }
+                    for st in block {
+                        st.run(s)?;
+                    }
+
+                    s.pop();
+                }
             }
         }
     }

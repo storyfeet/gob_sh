@@ -72,6 +72,10 @@ impl Shell {
         match parser::Lines.parse_s(c_line) {
             Ok(v) => {
                 let hist_r = self.history.push_command(c_line.clone());
+                if !self.prompt.cursor.is_end() {
+                    self.prompt.unprint(rt);
+                    self.prompt.print_end(rt);
+                }
 
                 rt.suspend_raw_mode().ok();
                 print!("\n\r");
@@ -132,6 +136,7 @@ impl Shell {
             Key::Char(c) => self.prompt.do_print(rt, |p| p.add_char(c)),
             Key::Backspace => self.prompt.do_cursor(rt, Cursor::backspace),
             Key::Delete => self.prompt.do_cursor(rt, Cursor::del_char),
+            Key::Ctrl('n') => self.prompt.do_print(rt, |p| p.add_char('\n')),
             Key::Ctrl('h') => self.prompt.do_cursor(rt, Cursor::del_line),
             Key::Esc => {
                 self.prompt.esc(rt);

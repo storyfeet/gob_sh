@@ -1,4 +1,4 @@
-use crate::args::Arg;
+use crate::args::{Arg, Args};
 use crate::channel::Channel;
 use crate::exec::{Connection, Exec};
 use crate::expr::Expr;
@@ -32,11 +32,17 @@ parser! {(FullStatement->Stt)
 
 parser! {(Statement->Stt)
     or!(
-        (keyword("let"),plus(ws_(common::Ident)),ws_("="),Args).map(|(_,ids,_,args)|Stt::Let(ids,args)),
-        (keyword("export"),plus(ws_(common::Ident)),ws_("="),Args).map(|(_,ids,_,args)|Stt::Export(ids,args)),
+        (keyword("let"),plus(ws_(common::Ident)),ws_("="),ArgsS).map(|(_,ids,_,args)|Stt::Let(ids,args)),
+        (keyword("export"),plus(ws_(common::Ident)),ws_("="),ArgsS).map(|(_,ids,_,args)|Stt::Export(ids,args)),
         (keyword("cd"),ws_(ArgP)).map(|(_,a)|Stt::Cd(a)),
-        ExprRight.map(|e|Stt::Expr(e)),
+        (keyword("for"),plus_until(ws_(common::Ident),ws_(keyword("in"))),ArgsP,Block).map(|(_,(vars,_),args,block)|Stt::For{vars,args,block}),
+        (fail_on(keyword(or!("for","export","cd","let"))),
+        ExprRight).map(|(_,e)|Stt::Expr(e)),
     )
+}
+
+parser! {(Block->Vec<Stt>)
+    (wn_("{"),star_until(wn_(FullStatement),keyword("}"))).map(|(_,(a,_))|a)
 }
 
 parser! {(ExprLeft ->Expr)
@@ -67,11 +73,15 @@ parser! {(PConnection->Connection)
 }
 
 parser! {(PExec->Exec)
-    (Path , Args,maybe(ws_(PConnection))).map(|(command,args,conn)|Exec{command,args,conn})
+    (Path , ArgsS,maybe(ws_(PConnection))).map(|(command,args,conn)|Exec{command,args,conn})
 }
 
-parser! {(Args -> crate::args::Args)
-    star(ws_(ArgP)).map(|v| crate::args::Args(v))
+parser! {(ArgsP->Args)
+    plus(ws_(ArgP)).map(|v|Args(v))
+}
+
+parser! {(ArgsS -> Args)
+    star(ws_(ArgP)).map(|v| Args(v))
 }
 
 parser! { (QuotedLitString->String)

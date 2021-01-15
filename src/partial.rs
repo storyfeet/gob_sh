@@ -67,13 +67,26 @@ parser! {(FullStatement->PT)
     p_list!((Item::Statement) Statement,tpos(p_plus(End),Item::End))
 }
 
+parser! {(Id->PT)
+    ws__(tpos(common::Ident,Item::Ident))
+}
+
+parser! {(Idents->PT)
+    tpos(p_plus(ws__(common::Ident)),Item::Ident)
+}
+
 parser! {(Statement->PT)
     or!(
-        p_list!((Item::Statement) kw("let"),tpos(p_plus(ws_(common::Ident)),Item::Ident),sym(ws_("=")),Args),
-        p_list!((Item::Statement) kw("export"),tpos(p_plus(ws_(common::Ident)),Item::Ident),sym(ws_("=")),Args),
+        p_list!((Item::Statement) kw("let"),Idents,sym(ws_("=")),ArgsS),
+        p_list!((Item::Statement) kw("export"),Idents,sym(ws_("=")),ArgsS),
         p_list!((Item::Statement) kw("cd"),ws_(ArgP)),
+        p_list!((Item::Statement) kw("for"),vpos(plus_until(Id,or(kw("in"),sym(EOI))).map(|(mut v,e)|{v.push(e);v}),Item::Ident),ArgsP,Block),
         ExprRight,
     )
+}
+
+parser! {(Block -> PT)
+    p_list!((Item::Statement) wn_(sym("{")),vpos(p_plus(wn_(FullStatement)),Item::Statement),wn_(sym("}"))),
 }
 
 parser! {(ExprLeft ->PT)
@@ -100,12 +113,14 @@ parser! {(Path->PT)
     tpos((maybe("~"),p_plus(or_ig!("\\ ",("/._",Alpha,NumDigit).iplus()))),Item::Path)
 }
 parser! {(PExec->PT)
-    tpos(Path,Item::Command).merge(Item::Command,Args).opush(maybe(ws_(PConnection)))
-    //p_list!((Item::Exec) tpos(Path,Item::Command) , Args,maybe(ws_(PConnection)))
+    tpos(Path,Item::Command).merge(Item::Command,ArgsS).opush(maybe(ws_(PConnection)))
 }
 
-parser! {(Args -> PT)
+parser! {(ArgsS -> PT)
     vpos(p_star(ws_(ArgP)),Item::Args)
+}
+parser! {(ArgsP -> PT)
+    vpos(p_plus(ws_(ArgP)),Item::Args)
 }
 
 parser! { (QuotedLitString->PT)

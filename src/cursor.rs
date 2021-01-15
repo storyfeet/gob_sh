@@ -129,4 +129,7 @@ impl Cursor {
         }
         self.s.replace_range(r, s2);
     }
+    pub fn is_end(&self) -> bool {
+        self.index == self.s.len()
+    }
 }
