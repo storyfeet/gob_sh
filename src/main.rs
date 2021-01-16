@@ -14,6 +14,7 @@ mod tab_complete;
 mod ui;
 
 //use std::env;
+use err_tools::*;
 use shell::Shell;
 use std::io::*;
 use termion::event::Event;
@@ -51,17 +52,21 @@ fn main() -> anyhow::Result<()> {
 
     shell.reset(&mut rt);
 
-    loop {
-        for raw_e in stdin().events_and_raw() {
-            let (e, _) = raw_e?;
-            match do_event(e, &mut shell, &mut rt) {
-                Ok(Action::Quit) => {
-                    println!("");
-                    return Ok(());
-                }
-                Ok(Action::Cont) => {}
-                v => print!("Fail : {:?}", v),
+    for raw_e in stdin().events_and_raw() {
+        let e = match raw_e {
+            Ok((e, _)) => e,
+            Err(e) => {
+                return e_string(format!("Input Error {}", e));
             }
+        };
+        match do_event(e, &mut shell, &mut rt) {
+            Ok(Action::Quit) => {
+                println!("");
+                return Ok(());
+            }
+            Ok(Action::Cont) => {}
+            v => print!("Fail : {:?}", v),
         }
     }
+    Ok(())
 }
