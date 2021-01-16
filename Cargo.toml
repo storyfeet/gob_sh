@@ -1,14 +1,20 @@
 [package]
-name = "gob_ion"
+name = "ru_shell"
 version = "0.1.0"
 authors = ["storyfeet <thebeaky@psmail.net>"]
 edition = "2018"
+license = "MIT" 
+readme = "readme.md"
+keywords = ["shell","parser","grammar"]
+description = "A Shell built around a semantic grammar"
+repository ="https://github.com/storyfeet/gob_sh"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bogobble={path="../../mlibs/bogobble/"}
-err_tools={path="../../mlibs/err_tools/"}
+bogobble="0.1.0"
+err_tools="0.1.0"
 anyhow = "1.0.34"
 glob = "0.3.0"
 termion = "1.5.5"

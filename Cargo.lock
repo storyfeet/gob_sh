@@ -21,6 +21,8 @@ checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 [[package]]
 name = "bogobble"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "687f6c9bb59796f334e90a4b888710be2f09f38396a91eaf3f29fbe9d770dddb"
 
 [[package]]
 name = "cc"
@@ -81,6 +83,8 @@ checksum = "a357d28ed41a50f9c765dbfe56cbc04a64e53e5fc58ba79fbc34c10ef3df831f"
 [[package]]
 name = "err_tools"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "888aebb7b725c0453d558d9cd71fe68e53f5bb1a830edafb26b3010799d6b468"
 dependencies = [
  "anyhow",
  "thiserror",
