@@ -97,23 +97,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 
 [[package]]
-name = "gob_ion"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bogobble",
- "chrono",
- "console",
- "ctrlc",
- "err_tools",
- "glob",
- "serde",
- "serde_derive",
- "termion",
- "toml",
-]
-
-[[package]]
 name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -209,6 +192,23 @@ name = "regex-syntax"
 version = "0.6.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3b181ba2dcf07aaccad5448e8ead58db5b742cf85dfe035e2227f137a539a189"
+
+[[package]]
+name = "ru_shell"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bogobble",
+ "chrono",
+ "console",
+ "ctrlc",
+ "err_tools",
+ "glob",
+ "serde",
+ "serde_derive",
+ "termion",
+ "toml",
+]
 
 [[package]]
 name = "serde"
