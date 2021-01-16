@@ -16,7 +16,7 @@ install using "cargo install ru\_shell"
 try it
 
 ```text
-let RU_PROMPT=r#"Hello \e33;$PWD\n>>\e0;"#
+let RU_PROMPT=r#"Hello \e33m$PWD\n>>\e0m"#
 
 for a in * {
 echo A is $a 
