@@ -36,7 +36,8 @@ parser! {(Statement->Stt)
         (keyword("export"),plus(ws_(common::Ident)),ws_("="),ArgsS).map(|(_,ids,_,args)|Stt::Export(ids,args)),
         (keyword("cd"),ws_(ArgP)).map(|(_,a)|Stt::Cd(a)),
         (keyword("for"),plus_until(ws_(common::Ident),ws_(keyword("in"))),ArgsP,Block).map(|(_,(vars,_),args,block)|Stt::For{vars,args,block}),
-        (fail_on(keyword(or!("for","export","cd","let"))),
+        (keyword("if"),ws_(ExprRight),Block,maybe((wn_(keyword("else")),Block))).map(|(_,expr,block,op)|Stt::If{expr,block,else_:op.map(|(_,a)|a)}),
+        (fail_on(keyword(or!("for","export","cd","let","if","else"))),
         ExprRight).map(|(_,e)|Stt::Expr(e)),
     )
 }

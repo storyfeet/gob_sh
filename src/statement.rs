@@ -13,6 +13,11 @@ pub enum Statement {
         args: Args,
         block: Vec<Statement>,
     },
+    If {
+        expr: Expr,
+        block: Vec<Statement>,
+        else_: Option<Vec<Statement>>,
+    },
 }
 
 impl Statement {
@@ -71,13 +76,36 @@ impl Statement {
                         };
                         s.set(vn.to_string(), Data::Str(nx.clone()));
                     }
-                    for st in block {
-                        st.run(s)?;
-                    }
-
-                    s.pop();
+                    run_block_pop(&block, s)?;
                 }
+            }
+            Statement::If { expr, block, else_ } => match expr.run(s)? {
+                true => {
+                    s.push();
+                    run_block_pop(&block, s)
+                }
+                false => match &else_ {
+                    Some(ee) => {
+                        s.push();
+                        run_block_pop(&ee, s)
+                    }
+                    None => Ok(true),
+                },
+            },
+        }
+    }
+}
+
+fn run_block_pop(block: &[Statement], store: &mut Store) -> anyhow::Result<bool> {
+    for st in block {
+        match st.run(store) {
+            Ok(_) => {}
+            Err(e) => {
+                store.pop();
+                return Err(e);
             }
         }
     }
+    store.pop();
+    Ok(true)
 }

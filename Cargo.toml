@@ -13,7 +13,7 @@ repository ="https://github.com/storyfeet/gob_sh"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bogobble="0.1.0"
+bogobble={path="../../mlibs/bogobble/"}
 err_tools="0.1.0"
 anyhow = "1.0.34"
 glob = "0.3.0"

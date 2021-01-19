@@ -10,7 +10,6 @@ pub enum Item {
     Keyword,
     Statement,
     Symbol,
-    //    Redirect,
     Ident,
     Path,
     Exec,
@@ -42,8 +41,21 @@ impl Display for Item {
     }
 }
 
-fn kw<'a, P: Parser<'a>>(p: P) -> PosTreeParse<KeyWord<P>, Item> {
-    tpos(keyword(p), Item::Keyword)
+pub struct KW<P> {
+    p: P,
+}
+
+impl<'a, P: Parser<'a>> Parser<'a> for KW<P> {
+    type Out = PT;
+    fn parse(&self, it: &PIter<'a>) -> ParseRes<'a, Self::Out> {
+        (tpos(keyword(self.p.br()), Item::Keyword), WS.star())
+            .first()
+            .parse(it)
+    }
+}
+
+fn kw<'a, P: Parser<'a>>(p: P) -> KW<P> {
+    KW { p }
 }
 
 fn sym<'a, P: Parser<'a>>(p: P) -> PosTreeParse<P, Item> {
@@ -81,6 +93,7 @@ parser! {(Statement->PT)
         p_list!((Item::Statement) kw("export"),Idents,sym(ws_("=")),ArgsS),
         p_list!((Item::Statement) kw("cd"),ws_(ArgP)),
         p_list!((Item::Statement) kw("for"),vpos(plus_until(Id,or(kw("in"),sym(EOI))).map(|(mut v,e)|{v.push(e);v}),Item::Ident),ArgsP,Block),
+        p_list!((Item::Statement) kw("if"),ws_(ExprRight),Block,pmaybe(p_list!((Item::Statement) wn_(kw("else")),Block),Item::Statement)),
         ExprRight,
     )
 }
