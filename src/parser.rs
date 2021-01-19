@@ -18,7 +18,6 @@ parser! {(ExChannel ->Channel)
         "^^".asv(Channel::Both),
         "^".asv(Channel::StdErr),
         "".asv(Channel::StdOut),
-
     )
 }
 

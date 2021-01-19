@@ -41,21 +41,21 @@ impl Display for Item {
     }
 }
 
-pub struct KW<P> {
-    p: P,
+pub struct KW {
+    s: &'static str,
 }
 
-impl<'a, P: Parser<'a>> Parser<'a> for KW<P> {
+impl<'a> Parser<'a> for KW {
     type Out = PT;
     fn parse(&self, it: &PIter<'a>) -> ParseRes<'a, Self::Out> {
-        (tpos(keyword(self.p.br()), Item::Keyword), WS.star())
+        (tpos(keyword(S(self.s)), Item::Keyword), WS.star())
             .first()
             .parse(it)
     }
 }
 
-fn kw<'a, P: Parser<'a>>(p: P) -> KW<P> {
-    KW { p }
+fn kw<'a>(s: &'static str) -> KW {
+    KW { s }
 }
 
 fn sym<'a, P: Parser<'a>>(p: P) -> PosTreeParse<P, Item> {
@@ -75,7 +75,6 @@ parser! {(Lines->PT)
 }
 
 parser! {(FullStatement->PT)
-    //TODO
     p_list!((Item::Statement) Statement,tpos(p_plus(End),Item::End))
 }
 

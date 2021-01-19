@@ -185,10 +185,9 @@ pub fn build_line<'a>(l: &str) -> String {
                 "{}{}{}{}",
                 build_line(&l[0..n]),
                 color::Fg(color::LightRed),
-                &l[n..],
+                &l[n..].replace("\n", "\n... "),
                 color::Fg(color::Reset)
-            )
-            .replace("\n", "\n..."),
+            ),
         },
     }
 }
