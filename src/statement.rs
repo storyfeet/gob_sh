@@ -18,6 +18,7 @@ pub enum Statement {
         block: Vec<Statement>,
         else_: Option<Vec<Statement>>,
     },
+    Disown(Expr),
 }
 
 impl Statement {
