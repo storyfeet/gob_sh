@@ -42,6 +42,7 @@ pub fn del_char(s: &mut String) -> Option<char> {
 /// use gob_ion::ui::del_n;
 /// assert_eq!(del_n("hello",3),"he");
 ///```
+#[allow(dead_code)]
 pub fn del_n(s: &str, n: usize) -> &str {
     let mut done = 0;
     let l = s.len();

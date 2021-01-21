@@ -1,0 +1,8 @@
+#!/usr/bin/env ru_shell
+
+for x in * {
+    echo X = $x
+}
+
+echo DONE
+

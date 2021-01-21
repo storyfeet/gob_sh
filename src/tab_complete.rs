@@ -269,7 +269,6 @@ impl HistorySaver {
 
 pub fn load_history(months: u32, mp: &mut BTreeMap<String, HistoryItem>) {
     let (y, m) = year_month(SystemTime::now());
-    println!("Y={},m={}", y, m);
     let path = history_path();
 
     for n in 1..=months {
@@ -293,7 +292,10 @@ pub fn load_history_file<P: AsRef<Path>>(
     mp: &mut BTreeMap<String, HistoryItem>,
 ) -> anyhow::Result<()> {
     let mut b = String::new();
-    let mut f = std::fs::File::open(path)?;
+    let mut f = match std::fs::File::open(path) {
+        Ok(f) => f,
+        Err(_) => return Ok(()),
+    };
     f.read_to_string(&mut b)?;
     let la: LoadArray = toml::from_str(&b)?;
     for i in la.item {

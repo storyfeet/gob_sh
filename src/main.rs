@@ -13,10 +13,11 @@ mod str_util;
 mod tab_complete;
 mod ui;
 
-//use std::env;
+use bogobble::traits::*;
 use err_tools::*;
 use shell::Shell;
 use std::io::*;
+use store::Store;
 use termion::event::Event;
 use termion::input::TermReadEventsAndRaw;
 use termion::raw::{IntoRawMode, RawTerminal};
@@ -39,6 +40,19 @@ pub fn do_event(e: Event, shell: &mut Shell, rt: &mut RT) -> anyhow::Result<Acti
 }
 
 fn main() -> anyhow::Result<()> {
+    //TODOsort out args properly
+    match std::env::args().skip(1).next() {
+        Some(v) => return run_file(v, &mut Store::new()).map(|_| ()),
+        None => {}
+    }
+
+    match termion::is_tty(&stdin()) {
+        true => run_interactive(),
+        false => run_stream_out(&mut stdin(), &mut Store::new()).map(|_| ()),
+    }
+}
+
+pub fn run_interactive() -> anyhow::Result<()> {
     ctrlc::set_handler(move || println!("Kill Signal")).ok();
     let mut shell = Shell::new();
     let mut rt = stdout().into_raw_mode()?;
@@ -69,4 +83,17 @@ fn main() -> anyhow::Result<()> {
         }
     }
     Ok(())
+}
+
+pub fn run_file<P: AsRef<std::path::Path>>(fname: P, store: &mut Store) -> anyhow::Result<bool> {
+    let mut f = std::fs::File::open(fname)?;
+    run_stream_out(&mut f, store)
+}
+
+pub fn run_stream_out<T: std::io::Read>(t: &mut T, store: &mut Store) -> anyhow::Result<bool> {
+    let mut s = String::new();
+    t.read_to_string(&mut s)?;
+    let ar = parser::Lines.parse_s(&s).map_err(|e| e.strung())?;
+    store.push();
+    crate::statement::run_block_pop(&ar, store)
 }

@@ -16,6 +16,7 @@ pub enum Item {
     Esc,
     Lit,
     Command,
+    Comment,
     Var,
     Arg,
     Args,
@@ -35,7 +36,7 @@ impl Display for Item {
             Item::String => write!(f, "{}", color::Fg(color::LightGreen)),
             Item::Lit => write!(f, "{}", color::Fg(color::LightYellow)),
             Item::Esc => write!(f, "{}", color::Fg(color::LightBlue)),
-            //Item::Err => write!(f, "{}", color::Fg(color::Red)),
+            Item::Comment => write!(f, "{}", color::Fg(color::LightBlue)),
             _ => write!(f, "{}", color::Fg(color::Reset)),
         }
     }
@@ -66,16 +67,23 @@ parser! {(End->PT)
     tpos( ws_(or_ig!("\n;".one(),EOI)),Item::End)
 }
 
+parser! {(Empties->PT)
+    tpos(star(ws_(or_ig!(
+            "\n;".plus(),
+            ("#",not("\n;").star()),
+        ))),Item::Comment)
+}
+
 parser! {(ExChannel -> PT)
     sym(or!( "^^", "^", ""))
 }
 
 parser! {(Lines->PT)
-    vpos(first(p_star(ws_(FullStatement)),EOI),Item::Statement)
+    p_list!((Item::Statement)Empties, vpos(first(p_star(ws_(FullStatement)),EOI),Item::Statement))
 }
 
 parser! {(FullStatement->PT)
-    p_list!((Item::Statement) Statement,tpos(p_plus(End),Item::End))
+    p_list!((Item::Statement) Statement,tpos(p_plus(End),Item::End),Empties)
 }
 
 parser! {(Id->PT)
@@ -93,6 +101,7 @@ parser! {(Statement->PT)
         p_list!((Item::Statement) kw("cd"),ws_(ArgP)),
         p_list!((Item::Statement) kw("for"),vpos(plus_until(Id,or(kw("in"),sym(EOI))).map(|(mut v,e)|{v.push(e);v}),Item::Ident),ArgsP,Block),
         p_list!((Item::Statement) kw("if"),ws_(ExprRight),Block,pmaybe(p_list!((Item::Statement) wn_(kw("else")),Block),Item::Statement)),
+        p_list!((Item::Statement) kw("disown"),PExec),
         ExprRight,
     )
 }
@@ -144,7 +153,7 @@ parser! { (QuotedLitString->PT)
 
 parser! { (LitString->PT)
     vpos(p_plus(or!(
-            tpos(not("&$|^{}()[]\\\" \n\t<>;").plus(),Item::String),
+            tpos(not("#&$|^{}()[]\\\" \n\t<>;").plus(),Item::String),
             tpos(("\\",or_ig!(Any.one(),EOI)),Item::Esc),
     )),Item::String)
 }

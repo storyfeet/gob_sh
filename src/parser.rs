@@ -13,6 +13,13 @@ parser! {(End->())
     ws_(or_ig!("\n;".one(),EOI))
 }
 
+parser! {(Empties->())
+    star(ws_(or_ig!(
+            "\n;".plus(),
+            ("#",not("\n;").star()),
+        ))).ig()
+}
+
 parser! {(ExChannel ->Channel)
     or!(
         "^^".asv(Channel::Both),
@@ -22,11 +29,11 @@ parser! {(ExChannel ->Channel)
 }
 
 parser! {(Lines -> Vec<Stt>)
-    first(star(ws_(FullStatement)),EOI)
+    (Empties,star(ws_(FullStatement)),EOI).map(|(_,a,_)|a)
 }
 
 parser! {(FullStatement->Stt)
-    first(Statement,bogobble::partial::p_plus(End))
+    first(Statement,(End,Empties))
 }
 
 parser! {(Statement->Stt)
@@ -36,7 +43,9 @@ parser! {(Statement->Stt)
         (keyword("cd"),ws_(ArgP)).map(|(_,a)|Stt::Cd(a)),
         (keyword("for"),plus_until(ws_(common::Ident),ws_(keyword("in"))),ArgsP,Block).map(|(_,(vars,_),args,block)|Stt::For{vars,args,block}),
         (keyword("if"),ws_(ExprRight),Block,maybe((wn_(keyword("else")),Block))).map(|(_,expr,block,op)|Stt::If{expr,block,else_:op.map(|(_,a)|a)}),
-        (fail_on(keyword(or!("for","export","cd","let","if","else"))),
+        (keyword("disown"),ws_(PExec)).map(|(_,e)|Stt::Disown(e)),
+
+        (fail_on(keyword(or!("for","export","cd","let","if","else","disown"))),
         ExprRight).map(|(_,e)|Stt::Expr(e)),
     )
 }
@@ -96,7 +105,7 @@ parser! { (QuotedLitString->String)
 
 parser! { (LitString->String)
     strings_plus(or!(
-            string(not("&$|^{}()[]\\\" \n\t<>;").plus()),
+            string(not("#&$|^{}()[]\\\" \n\t<>;").plus()),
             "\\n".map(|_|"\n".to_string()),
             "\\t".map(|_|"\t".to_string()),
              ("\\",Any.one()).map(|(_,c)| {let mut s=String::new(); s.push(c);s}),

@@ -61,4 +61,14 @@ impl Exec {
             }
         }
     }
+
+    pub fn disown(&self) -> anyhow::Result<u32> {
+        let ch = self.run(
+            &mut Store::new(),
+            Stdio::null(),
+            Stdio::null(),
+            Stdio::null(),
+        )?;
+        Ok(ch.id())
+    }
 }

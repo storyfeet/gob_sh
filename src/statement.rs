@@ -1,4 +1,5 @@
 use crate::args::{Arg, Args};
+use crate::exec::Exec;
 use crate::expr::Expr;
 use crate::store::{Data, Store};
 use err_tools::*;
@@ -18,7 +19,7 @@ pub enum Statement {
         block: Vec<Statement>,
         else_: Option<Vec<Statement>>,
     },
-    Disown(Expr),
+    Disown(Exec),
 }
 
 impl Statement {
@@ -93,11 +94,16 @@ impl Statement {
                     None => Ok(true),
                 },
             },
+            Statement::Disown(e) => {
+                let id = e.disown()?;
+                println!("PID = {}", id);
+                Ok(true)
+            }
         }
     }
 }
 
-fn run_block_pop(block: &[Statement], store: &mut Store) -> anyhow::Result<bool> {
+pub fn run_block_pop(block: &[Statement], store: &mut Store) -> anyhow::Result<bool> {
     for st in block {
         match st.run(store) {
             Ok(_) => {}
