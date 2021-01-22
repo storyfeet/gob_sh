@@ -2,8 +2,6 @@ with env vars DO
 
 accept  comments within block
 
-source on .
-
 reset.
 
 aliases.

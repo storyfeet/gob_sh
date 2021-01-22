@@ -51,18 +51,23 @@ impl Shell {
             }
         };
 
-        if let Some(a) = top.find_at_end(c_line, |&i| (i == Item::Arg || i == Item::Path)) {
-            let s = a.on_str(c_line);
-
-            match crate::tab_complete::tab_complete_path(s) {
-                Complete::None => self.prompt.message = Some(format!("Could not complete '{}'", s)),
-                Complete::One(tc) => {
-                    self.prompt
-                        .cursor
-                        .replace_range(a.start.unwrap_or(0)..clen, &tc);
+        let (tabs, tabr) = match top.find_at_end(c_line, |&i| (i == Item::Arg || i == Item::Path)) {
+            Some(a) => (a.on_str(c_line), a.range()),
+            None => match self.prompt.cursor.is_end() {
+                true => ("", bogobble::partial::ranger::Ranger::InEx(clen, clen)),
+                false => {
+                    self.prompt.message = Some(format!("Could not complete",));
+                    return;
                 }
-                Complete::Many(v) => self.prompt.options = Some((a.range().with_end(clen), v)),
+            },
+        };
+
+        match crate::tab_complete::tab_complete_path(tabs) {
+            Complete::None => self.prompt.message = Some(format!("Could not complete '{}'", tabs)),
+            Complete::One(tc) => {
+                self.prompt.cursor.replace_range(tabr.with_end(clen), &tc);
             }
+            Complete::Many(v) => self.prompt.options = Some((tabr.with_end(clen), v)),
         }
     }
     pub fn on_enter(&mut self, rt: &mut RT) {
