@@ -44,7 +44,7 @@ parser! {(Statement->Stt)
         (keyword("for"),plus_until(ws_(common::Ident),ws_(keyword("in"))),ArgsP,Block).map(|(_,(vars,_),args,block)|Stt::For{vars,args,block}),
         (keyword("if"),ws_(ExprRight),Block,maybe((wn_(keyword("else")),Block))).map(|(_,expr,block,op)|Stt::If{expr,block,else_:op.map(|(_,a)|a)}),
         (keyword("disown"),ws_(PExec)).map(|(_,e)|Stt::Disown(e)),
-
+        (". ",ws_(Path)).map(|(_,p)|Stt::Dot(p)),
         (fail_on(keyword(or!("for","export","cd","let","if","else","disown"))),
         ExprRight).map(|(_,e)|Stt::Expr(e)),
     )

@@ -51,7 +51,7 @@ impl Shell {
             }
         };
 
-        if let Some(a) = top.find_at_end(c_line, |&i| i == Item::Arg) {
+        if let Some(a) = top.find_at_end(c_line, |&i| (i == Item::Arg || i == Item::Path)) {
             let s = a.on_str(c_line);
 
             match crate::tab_complete::tab_complete_path(s) {

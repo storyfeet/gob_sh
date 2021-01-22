@@ -102,6 +102,7 @@ parser! {(Statement->PT)
         p_list!((Item::Statement) kw("for"),vpos(plus_until(Id,or(kw("in"),sym(EOI))).map(|(mut v,e)|{v.push(e);v}),Item::Ident),ArgsP,Block),
         p_list!((Item::Statement) kw("if"),ws_(ExprRight),Block,pmaybe(p_list!((Item::Statement) wn_(kw("else")),Block),Item::Statement)),
         p_list!((Item::Statement) kw("disown"),PExec),
+        p_list!((Item::Statement) sym(". "),ws_(Path)),
         ExprRight,
     )
 }

@@ -20,6 +20,7 @@ pub enum Statement {
         else_: Option<Vec<Statement>>,
     },
     Disown(Exec),
+    Dot(String),
 }
 
 impl Statement {
@@ -99,6 +100,7 @@ impl Statement {
                 println!("PID = {}", id);
                 Ok(true)
             }
+            Statement::Dot(p) => crate::run_file(p, s),
         }
     }
 }

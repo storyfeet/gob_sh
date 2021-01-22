@@ -68,6 +68,17 @@ pub trait CharStr {
         None
     }
 }
+
+pub fn str_agree(a: &str, b: &str) -> usize {
+    //IMPROVE faster, to only read chars after certain distace
+    for (i, c) in a.char_indices() {
+        if b.char_at(i) != Some(c) {
+            return i;
+        }
+    }
+    a.len()
+}
+
 #[cfg(test)]
 mod test {
     use super::*;

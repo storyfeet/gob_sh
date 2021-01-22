@@ -1,3 +1,4 @@
+use crate::str_util;
 use chrono::*;
 use serde_derive::*;
 use std::cmp::Ordering;
@@ -28,13 +29,28 @@ fn dir_slash(p: &Path, td: Option<&String>) -> String {
     s
 }
 
-pub fn tab_complete_path(s: &str) -> Complete {
-    let (s, hd) = match s.starts_with("~") {
+pub fn all_strs_agree<I: Iterator<Item = S>, S: AsRef<str>>(
+    mut it: I,
+    min_len: usize,
+) -> Option<String> {
+    let res = it.next()?.as_ref().to_string();
+    let mut max = res.len();
+    for v in it {
+        max = str_util::str_agree(&res[..max], v.as_ref());
+        if max <= min_len {
+            return None;
+        }
+    }
+    Some(res[..max].to_string())
+}
+
+pub fn tab_complete_path(src: &str) -> Complete {
+    let (s, hd) = match src.starts_with("~") {
         true => {
             let hd = std::env::var("HOME").unwrap_or("".to_string());
-            (s.replacen("~", &hd, 1), Some(hd))
+            (src.replacen("~", &hd, 1), Some(hd))
         }
-        false => (s.to_string(), None),
+        false => (src.to_string(), None),
     };
     let sg = format!("{}{}", s.replace("\\ ", " ").trim_end_matches("*"), "*");
     let g = glob::glob(&sg)
@@ -46,7 +62,13 @@ pub fn tab_complete_path(s: &str) -> Complete {
             let tg = &g[0];
             Complete::One(dir_slash(tg, hd.as_ref()))
         }
-        _ => Complete::Many(g.into_iter().map(|d| dir_slash(&d, hd.as_ref())).collect()),
+        _ => {
+            let v: Vec<String> = g.into_iter().map(|d| dir_slash(&d, hd.as_ref())).collect();
+            match all_strs_agree(v.iter(), s.len()) {
+                Some(s) => return Complete::One(s),
+                None => Complete::Many(v),
+            }
+        }
     }
 }
 
