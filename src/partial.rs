@@ -190,14 +190,16 @@ parser! { (ArgP->PT)
 /// partial Raw strings eg: r###" Any \ "##  wierd \ string "###
 pub fn p_r_hash<'a>(it: &PIter<'a>) -> ParseRes<'a, PT> {
     let (it2, pt, e) = p_list!((Item::String) sym("r"), sym("#".star()), sym("\"")).parse(it)?;
-    let hlen = match pt.children.get(1) {
-        Some(ch) => ch.str_len(it.orig_str()),
-        None => {
+    let hlen = match (pt.children.get(1), pt.children.get(2)) {
+        (Some(ch), Some(_)) => ch.str_len(it.orig_str()),
+        (Some(ch), None) if ch.on_str(it.orig_str()) == "\"" => 0,
+        (Some(_), None) => {
             return EOI
                 .parse(&it2)
                 .map_v(|_| pt.clone())
                 .map_err(|e2| e.unwrap_or(e2))
         }
+        _ => return Err(it.err_s("Quotes")),
     };
 
     Any.p_until(
