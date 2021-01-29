@@ -39,7 +39,11 @@ pub fn do_event(e: Event, shell: &mut Shell, rt: &mut RT) -> anyhow::Result<Acti
     Ok(Action::Cont)
 }
 
-fn main() -> anyhow::Result<()> {
+fn server_main() -> anyhow::Result<()> {
+    tokio::run(ru_complete::main())
+}
+
+fn shell_main() -> anyhow::Result<()> {
     //TODOsort out args properly
     match std::env::args().skip(1).next() {
         Some(v) => return run_file(v, &mut Store::new()).map(|_| ()),

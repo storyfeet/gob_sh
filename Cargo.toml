@@ -24,3 +24,8 @@ serde = "1.0.118"
 serde_derive = "1.0.118"
 toml = "0.5.8"
 chrono = "0.4.19"
+clap = "2.33.3"
+
+
+ru_complete = {path="../ru_complete/"}
+tokio = { version = "1", features = ["full"] }
