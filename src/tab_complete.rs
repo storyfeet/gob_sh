@@ -74,7 +74,6 @@ pub fn tab_complete_path(src: &str) -> Complete {
 
 #[derive(Clone, Debug)]
 pub struct HistoryStore {
-    mp: BTreeMap<String, HistoryItem>,
     recent: Vec<String>,
     pub guesses: Option<Vec<String>>,
     pub pos: Option<usize>,

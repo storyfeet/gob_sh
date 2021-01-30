@@ -14,6 +14,7 @@ mod tab_complete;
 mod ui;
 
 use bogobble::traits::*;
+use clap::*;
 use err_tools::*;
 use shell::Shell;
 use std::io::*;
@@ -39,14 +40,39 @@ pub fn do_event(e: Event, shell: &mut Shell, rt: &mut RT) -> anyhow::Result<Acti
     Ok(Action::Cont)
 }
 
-fn server_main() -> anyhow::Result<()> {
-    tokio::run(ru_complete::main())
+pub fn main() -> anyhow::Result<()> {
+    let clp = App::new("Ru Shell")
+        .about("A shell with multiline editing and curly syntax")
+        .version(crate_version!())
+        .author("Matthew Stoodley")
+        .subcommand(
+            SubCommand::with_name("server").about("The server that manages the command history"),
+        )
+        .arg(
+            (Arg::with_name("fname").index(1).required(false))
+                .help("run on a file without going interactive"),
+        )
+        .get_matches();
+
+    if let Some(_sub) = clp.subcommand_matches("server") {
+        return server_main();
+    }
+    shell_main(&clp)
 }
 
-fn shell_main() -> anyhow::Result<()> {
+fn server_main() -> anyhow::Result<()> {
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(ru_complete::main());
+    Ok(())
+}
+
+fn shell_main(clp: &clap::ArgMatches) -> anyhow::Result<()> {
     //TODOsort out args properly
-    match std::env::args().skip(1).next() {
-        Some(v) => return run_file(v, &mut Store::new()).map(|_| ()),
+    match clp.value_of("fname") {
+        Some(v) => {
+            println!("Got file '{}'", v);
+            return run_file(v, &mut Store::new()).map(|_| ());
+        }
         None => {}
     }
 
