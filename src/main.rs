@@ -3,6 +3,7 @@ mod channel;
 mod cursor;
 mod exec;
 mod expr;
+mod inputs;
 mod parser;
 mod partial;
 mod prompt;
@@ -57,6 +58,7 @@ pub fn main() -> anyhow::Result<()> {
     if let Some(_sub) = clp.subcommand_matches("server") {
         return server_main();
     }
+
     shell_main(&clp)
 }
 
@@ -77,12 +79,15 @@ fn shell_main(clp: &clap::ArgMatches) -> anyhow::Result<()> {
     }
 
     match termion::is_tty(&stdin()) {
-        true => run_interactive(),
+        true => {
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(run_interactive())
+        }
         false => run_stream_out(&mut stdin(), &mut Store::new()).map(|_| ()),
     }
 }
 
-pub fn run_interactive() -> anyhow::Result<()> {
+pub async fn run_interactive() -> anyhow::Result<()> {
     ctrlc::set_handler(move || println!("Kill Signal")).ok();
     let mut shell = Shell::new();
     let mut rt = stdout().into_raw_mode()?;
