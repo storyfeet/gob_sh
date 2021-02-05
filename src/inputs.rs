@@ -61,10 +61,12 @@ pub async fn handle_inputs(ch: mpsc::Sender<REvent>) -> anyhow::Result<()> {
             match parse_event(&full_buf) {
                 ParseRes::Ok(e, n) => {
                     drop(full_buf.drain(0..n));
+                    //println!("parse : {:?}-{}-{:?}", e, n, full_buf);
                     ch.send(Ok(e)).await?;
                 }
                 ParseRes::Err(e, n) => {
                     drop(full_buf.drain(0..n));
+                    //println!("perr : {:?}-{}-{:?}", e, n, full_buf);
                     ch.send(Err(e)).await?;
                 }
                 ParseRes::Incomplete => {
@@ -121,7 +123,7 @@ pub fn parse_utf8(v: &[u8], off: usize) -> ParseRes<char> {
         }
         buf[x] = v[ox];
         if let Ok(s) = std::str::from_utf8(&buf[0..=x]) {
-            return ParseRes::Ok(s.chars().next().unwrap(), ox);
+            return ParseRes::Ok(s.chars().next().unwrap(), ox + 1);
         }
     }
     ParseRes::Err(SError("Could not make utf8 Char").into(), 1)
