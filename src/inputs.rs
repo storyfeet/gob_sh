@@ -48,56 +48,15 @@ pub fn next_event(v: &mut Vec<u8>) -> Option<anyhow::Result<Event>> {
     Some(res.map_err(|e| e.into()))
 }
 
-/*pub enum WaitFor {
-    Read,
-    Send(AEvent),
+
+pub enum ParseRes{
+    Ok(Event,usize),
+    Incomplete,
+    Err(anyhow::Error),
 }
 
-pub struct InputHandle {
-    sd: Stdin,
-    ch: mpsc::Sender<AEvent>,
-    status: WaitFor,
-    buff: Vec<u8>,
-}
+pub fn parse
 
-impl InputHandle {
-    pub fn new(ch: mpsc::Sender<AEvent>) -> Self {
-        InputHandle {
-            sd: stdin(),
-            ch,
-            status: WaitFor::Read,
-            buff: Vec::new(),
-        }
-    }
-}
 
-impl Future for InputHandle {
-    type Output = ();
-    fn poll(self: Pin<&mut Self>, ctex: &mut Context<'_>) -> Poll<()> {
-        let s = self.get_mut();
-        loop {
-            match &s.status {
-                WaitFor::Read => {
-                    let mut b: [u8; 1] = [0];
-                    let mut rb = ReadBuf::new(&mut b);
-                    match Pin::new(&mut s.sd).poll_read(ctex, &mut rb) {
-                        Poll::Ready(Ok(())) => {
-                            s.buff.extend(rb.filled());
-                            let mut c: [u8; 10] = [0; 10];
-                            let mut rc = ReadBuf::new(&mut c);
-                            drop(Pin::new(&mut s.sd).poll_read(ctex, &mut rc));
-                            s.buff.extend(rc.filled());
 
-                            //TODO work out the rest of the buffer
-                        }
-                        Poll::Pending => return Poll::Pending,
-                        Poll::Ready(Err(e)) => s.status = WaitFor::Send(AEvent::Error(e.into())),
-                    }
-                }
-                WaitFor::Send(ae) => match s.ch.try_send(ae.clone()) {
-                    Ok(()) => s.status = WaitFor::Read,
-                },
-            }
-        }
-    }
-}*/
+

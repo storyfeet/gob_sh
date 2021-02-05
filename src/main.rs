@@ -13,15 +13,17 @@ mod store;
 mod str_util;
 mod tab_complete;
 mod ui;
+use inputs::AEvent;
+use tokio::sync::mpsc;
 
 use bogobble::traits::*;
 use clap::*;
-use err_tools::*;
+//use err_tools::*;
 use shell::Shell;
 use std::io::*;
 use store::Store;
 use termion::event::Event;
-use termion::input::TermReadEventsAndRaw;
+//use termion::input::TermReadEventsAndRaw;
 use termion::raw::{IntoRawMode, RawTerminal};
 
 type RT = RawTerminal<Stdout>;
@@ -101,21 +103,24 @@ pub async fn run_interactive() -> anyhow::Result<()> {
 
     shell.reset(&mut rt);
 
-    for raw_e in stdin().events_and_raw() {
-        let e = match raw_e {
-            Ok((e, _)) => e,
-            Err(e) => {
-                return e_string(format!("Input Error {}", e));
-            }
+    let (ch_s, mut ch_r) = mpsc::channel(10);
+
+    tokio::spawn(inputs::handle_inputs(ch_s));
+
+    while let Some(ae) = ch_r.recv().await {
+        match ae {
+            AEvent::Input(e) => match do_event(e, &mut shell, &mut rt) {
+                Ok(Action::Quit) => {
+                    println!("");
+                    return Ok(());
+                }
+                Ok(Action::Cont) => {}
+                v => print!("Fail : {:?}", v),
+            },
+            _ => shell
+                .prompt
+                .do_print(&mut rt, |p| p.message = Some("Something wierd".to_string())),
         };
-        match do_event(e, &mut shell, &mut rt) {
-            Ok(Action::Quit) => {
-                println!("");
-                return Ok(());
-            }
-            Ok(Action::Cont) => {}
-            v => print!("Fail : {:?}", v),
-        }
     }
     Ok(())
 }
