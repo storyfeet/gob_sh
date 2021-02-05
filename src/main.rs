@@ -13,7 +13,7 @@ mod store;
 mod str_util;
 mod tab_complete;
 mod ui;
-use inputs::AEvent;
+use inputs::{Event, Key};
 use tokio::sync::mpsc;
 
 use bogobble::traits::*;
@@ -22,7 +22,7 @@ use clap::*;
 use shell::Shell;
 use std::io::*;
 use store::Store;
-use termion::event::Event;
+//use termion::event::Event;
 //use termion::input::TermReadEventsAndRaw;
 use termion::raw::{IntoRawMode, RawTerminal};
 
@@ -32,15 +32,6 @@ type RT = RawTerminal<Stdout>;
 pub enum Action {
     Cont,
     Quit,
-}
-
-pub fn do_event(e: Event, shell: &mut Shell, rt: &mut RT) -> anyhow::Result<Action> {
-    match e {
-        Event::Key(k) => return shell.do_key(k, rt),
-        Event::Unsupported(e) => shell.do_unsupported(&e, rt)?,
-        e => print!("Event {:?}\n\r", e),
-    }
-    Ok(Action::Cont)
 }
 
 pub fn main() -> anyhow::Result<()> {
@@ -109,17 +100,11 @@ pub async fn run_interactive() -> anyhow::Result<()> {
 
     while let Some(ae) = ch_r.recv().await {
         match ae {
-            AEvent::Input(e) => match do_event(e, &mut shell, &mut rt) {
-                Ok(Action::Quit) => {
-                    println!("");
-                    return Ok(());
-                }
-                Ok(Action::Cont) => {}
-                v => print!("Fail : {:?}", v),
-            },
-            _ => shell
+            Ok(Event::Ctrl(Key::Char('d'))) => return Ok(()),
+            Ok(e) => drop(shell.do_event(e, &mut rt)?),
+            Err(e) => shell
                 .prompt
-                .do_print(&mut rt, |p| p.message = Some("Something wierd".to_string())),
+                .do_print(&mut rt, |p| p.message = Some(e.to_string())),
         };
     }
     Ok(())

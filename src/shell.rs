@@ -1,9 +1,9 @@
 //! Some options for statements to run, or persistent data
 use crate::cursor::Cursor;
+use crate::inputs::{Event, Key};
 use crate::partial::Item;
 use crate::Action;
 use bogobble::traits::*;
-use termion::event::Key;
 
 use crate::store::Store;
 use crate::tab_complete::*;
@@ -133,16 +133,24 @@ impl Shell {
         Ok(())
     }
 
+    pub fn do_ctrl(&mut self, k: Key, rt: &mut RT) {
+        match k {
+            Key::Char('d') => { /*handle higher up*/ }
+            Key::Char('n') => self.prompt.do_print(rt, |p| p.add_char('\n')),
+            Key::Char('h') => self.prompt.do_cursor(rt, Cursor::del_line),
+            c => self
+                .prompt
+                .do_print(rt, |p| p.message = Some(format!("{:?}", c))),
+        }
+    }
+
     pub fn do_key(&mut self, k: Key, rt: &mut RT) -> anyhow::Result<Action> {
         match k {
-            Key::Ctrl('d') => return Ok(Action::Quit),
             Key::Char('\n') => self.on_enter(rt),
             Key::Char('\t') => self.do_print(rt, Shell::tab_complete),
             Key::Char(c) => self.prompt.do_print(rt, |p| p.add_char(c)),
-            Key::Backspace => self.prompt.do_cursor(rt, Cursor::backspace),
+            Key::BackSpace => self.prompt.do_cursor(rt, Cursor::backspace),
             Key::Delete => self.prompt.do_cursor(rt, Cursor::del_char),
-            Key::Ctrl('n') => self.prompt.do_print(rt, |p| p.add_char('\n')),
-            Key::Ctrl('h') => self.prompt.do_cursor(rt, Cursor::del_line),
             Key::Esc => {
                 self.prompt.esc(rt);
                 self.history.guesses = None;
@@ -195,5 +203,14 @@ impl Shell {
             }),
         }
         Ok(())
+    }
+    pub fn do_event(&mut self, e: Event, rt: &mut RT) -> anyhow::Result<Action> {
+        match e {
+            Event::Key(k) => return self.do_key(k, rt),
+            Event::Unsupported(e) => self.do_unsupported(&e, rt)?,
+            Event::Ctrl(k) => self.do_ctrl(k, rt),
+            e => print!("Event {:?}\n\r", e),
+        }
+        Ok(Action::Cont)
     }
 }
