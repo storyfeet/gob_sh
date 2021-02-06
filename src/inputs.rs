@@ -19,6 +19,7 @@ pub enum Key {
     Delete,
     BackSpace,
     End,
+    F(u8),
 }
 
 #[derive(Clone, Debug)]
@@ -98,7 +99,7 @@ pub fn parse_event(v: &[u8]) -> ParseRes<Event> {
         return ParseRes::Incomplete;
     }
     match v[0] {
-        b'\x1B' => unimplemented! {}, // Control Sequence
+        b'\x1B' => parse_csi(v, 1), // Control Sequence
         b'\n' | b'\r' => ParseRes::Ok(Event::Key(Key::Enter), 1),
         b'\t' => ParseRes::Ok(Event::Key(Key::Tab), 1),
         b'\x7F' => ParseRes::Ok(Event::Key(Key::BackSpace), 1),
@@ -114,7 +115,7 @@ pub fn parse_event(v: &[u8]) -> ParseRes<Event> {
     }
 }
 
-pub fn parse_utf8(v: &[u8], off: usize) -> ParseRes<char> {
+fn parse_utf8(v: &[u8], off: usize) -> ParseRes<char> {
     let mut buf: [u8; 4] = [0; 4];
     for x in 0..4 {
         let ox = off + x;
@@ -127,4 +128,22 @@ pub fn parse_utf8(v: &[u8], off: usize) -> ParseRes<char> {
         }
     }
     ParseRes::Err(SError("Could not make utf8 Char").into(), 1)
+}
+
+fn parse_csi(v: &[u8], off: usize) -> ParseRes<Event> {
+    if v.len() <= off {
+        return ParseRes::Incomplete;
+    }
+    match v[off] {
+        b'[' => {
+            return match v.get(off + 1) {
+                Some(val @ b'A'..=b'E') => {
+                    ParseRes::Ok(Event::Key(Key::F(1 + val - b'A')), off + 2)
+                }
+                _ => ParseRes::Err(SError("wierd after [").into(), off + 2),
+            }
+        }
+        b'D' => ParseRes::Ok(Event::Key(Key::Left), off + 1),
+        _ => unimplemented! {},
+    }
 }
