@@ -146,7 +146,7 @@ impl Shell {
 
     pub fn do_key(&mut self, k: Key, rt: &mut RT) -> anyhow::Result<Action> {
         match k {
-            Key::Char('\n') => self.on_enter(rt),
+            Key::Char('\n') | Key::Enter => self.on_enter(rt),
             Key::Char('\t') => self.do_print(rt, Shell::tab_complete),
             Key::Char(c) => self.prompt.do_print(rt, |p| p.add_char(c)),
             Key::BackSpace => self.prompt.do_cursor(rt, Cursor::backspace),
