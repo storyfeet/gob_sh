@@ -1,6 +1,6 @@
 use crate::args::Args;
 use crate::channel::*;
-use crate::store::Store;
+use crate::store::AStore;
 use err_tools::*;
 use std::process::{Child, Command, Stdio};
 
@@ -14,7 +14,7 @@ impl Connection {
     pub fn run(
         &self,
         ch: Child,
-        sets: &mut Store,
+        sets: &mut AStore,
         out: Stdio,
         err: Stdio,
     ) -> anyhow::Result<Child> {
@@ -36,7 +36,7 @@ pub struct Exec {
 impl Exec {
     pub fn run(
         &self,
-        s: &mut Store,
+        s: &mut AStore,
         input: Stdio,
         output: Stdio,
         errput: Stdio,

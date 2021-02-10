@@ -1,7 +1,7 @@
 use crate::args::{Arg, Args};
 use crate::exec::Exec;
 use crate::expr::Expr;
-use crate::store::{Data, Store};
+use crate::store::{AStore, Data};
 use err_tools::*;
 
 pub enum Statement {
@@ -24,7 +24,7 @@ pub enum Statement {
 }
 
 impl Statement {
-    pub fn run(&self, s: &mut Store) -> anyhow::Result<bool> {
+    pub async fn run(&self, s: &mut AStore) -> anyhow::Result<bool> {
         match self {
             Statement::Expr(e) => e.run(s),
             Statement::Let(names, args) => {

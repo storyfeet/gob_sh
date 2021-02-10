@@ -1,6 +1,55 @@
 use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 
+use tokio::sync::{mpsc, oneshot};
+
+#[derive(Clone)]
+pub struct AStore {
+    ch: mpsc::Sender<Job>,
+}
+
+impl AStore {
+    pub async fn new() -> Self {
+        let (ch, ch_r) = mpsc::channel(5);
+        tokio::spawn(scope_handler(ch_r));
+        Self { ch }
+    }
+
+    pub async fn get(&self, s: String) -> Option<Data> {
+        let (ret_s, ret_r) = oneshot::channel();
+        self.ch.send(Job::Get(s, ret_s)).await.ok()?;
+        ret_r.await.unwrap_or(None)
+    }
+
+    pub async fn let_set(&self, s: String, d: Data) {
+        self.ch.send(Job::Let(s, d)).await.ok();
+    }
+
+    pub async fn set(&self, s: String, d: Data) {
+        self.ch.send(Job::Set(s, d)).await.ok();
+    }
+}
+
+pub enum Job {
+    Get(String, oneshot::Sender<Option<Data>>),
+    Set(String, Data),
+    Let(String, Data),
+}
+
+///Consider accepting an optional parent to this method.
+pub async fn scope_handler(mut ch_r: mpsc::Receiver<Job>) {
+    let mut store = Store::new();
+    while let Some(j) = ch_r.recv().await {
+        match j {
+            Job::Let(s, d) => store.let_set(s, d),
+            Job::Set(s, d) => store.set(s, d),
+            Job::Get(s, ch_s) => {
+                drop(ch_s.send(store.get(&s)));
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Store {
     scopes: Vec<BTreeMap<String, Data>>,

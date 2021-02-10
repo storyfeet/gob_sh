@@ -89,8 +89,8 @@ pub async fn handle_inputs(ch: mpsc::Sender<REvent>) -> anyhow::Result<()> {
             needed = false;
         }
 
-        'grabber: for n in 1..5 {
-            let mut bbuf = ReadBuf::new(&mut bbig[0..(4 * n)]);
+        'grabber: for n in 0..6 {
+            let mut bbuf = ReadBuf::new(&mut bbig[0..(1 + 3 * n)]);
             poll_fn(|c| {
                 drop(Pin::new(&mut sdin).poll_read(c, &mut bbuf));
                 Poll::Ready(())

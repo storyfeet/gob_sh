@@ -1,7 +1,7 @@
 use crate::args::*;
 use crate::channel::*;
 use crate::exec::*;
-use crate::store::Store;
+use crate::store::AStore;
 use err_tools::*;
 use std::process::Stdio;
 
@@ -18,7 +18,7 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn run(&self, s: &mut Store) -> anyhow::Result<bool> {
+    pub async fn run(&self, s: &mut AStore) -> anyhow::Result<bool> {
         match self {
             Expr::Exec(e) => {
                 let mut ch = e.run(s, Stdio::inherit(), Stdio::inherit(), Stdio::inherit())?;

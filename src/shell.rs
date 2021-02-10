@@ -5,29 +5,28 @@ use crate::partial::Item;
 use crate::Action;
 use bogobble::traits::*;
 
-use crate::store::Store;
+use crate::store::AStore;
 use crate::tab_complete::*;
 use crate::{parser, prompt::Prompt, RT};
 use std::io::Read;
 use std::io::Write;
 use std::path::Path;
 
-#[derive(Clone, Debug)]
-
+#[derive(Clone)]
 pub struct Shell {
     pub prompt: Prompt,
-    pub store: Store,
+    pub store: AStore,
     pub history: HistoryStore,
 }
 
 impl Shell {
     /// Invariants : Settings must always have at least one layer in scope.
-    pub fn new() -> Shell {
+    pub async fn new() -> Shell {
         let mut history = HistoryStore::new();
         history.load_history();
         Shell {
             prompt: Prompt::new(">>".to_string()),
-            store: Store::new(),
+            store: AStore::new().await,
             history,
         }
     }
