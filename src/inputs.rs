@@ -40,6 +40,7 @@ pub enum Event {
     Unsupported(Vec<u8>),
     Null,
     MouseEvent(u8, u16, u16),
+    CSI(Vec<u16>, u8),
 }
 
 pub type REvent = anyhow::Result<Event>;
@@ -206,7 +207,8 @@ fn parse_csi(v: &[u8], off: usize) -> ParseRes<Event> {
                 off,
             )
         }
-        _ => unimplemented! {},
+        _c @ b'0'..=b'9' => csi_data(v, off).map(|(a, n)| Event::CSI(a, n)),
+        _ => ParseRes::Ok(Event::Null, off + 1),
     }
 }
 
