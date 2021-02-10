@@ -182,6 +182,7 @@ impl Shell {
                     self.prompt.do_print(rt, |p| p.replace_line(None));
                 }
             }
+            Key::Tab => self.do_print(rt, |s| s.tab_complete()),
             e => self
                 .prompt
                 .do_print(rt, |p| p.message = Some(format!("{:?}", e))),
