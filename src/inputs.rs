@@ -53,6 +53,18 @@ macro_rules! b_at {
     };
 }
 
+macro_rules! at_safe {
+    ($v:expr,$a:expr) => {
+        at_safe!($v, $a, 0)
+    };
+    ($v:expr,$a:expr,$def:expr) => {
+        match $v.len() > $a {
+            true => $v[$a],
+            false => $def,
+        }
+    };
+}
+
 macro_rules! p_try {
     ($e:expr) => {
         match $e {
@@ -65,36 +77,43 @@ macro_rules! p_try {
 
 pub async fn handle_inputs(ch: mpsc::Sender<REvent>) -> anyhow::Result<()> {
     let mut b1: [u8; 1] = [0];
-    let mut bbig: [u8; 4] = [0; 4];
+    let mut bbig: [u8; 20] = [0; 20];
     let mut full_buf: Vec<u8> = Vec::new();
     let mut sdin = stdin();
+    let mut needed = true;
     loop {
-        sdin.read(&mut b1).await?;
-        let mut bbuf = ReadBuf::new(&mut bbig);
-        poll_fn(|c| {
-            drop(Pin::new(&mut sdin).poll_read(c, &mut bbuf));
-            Poll::Ready(())
-        })
-        .await;
+        if needed {
+            sdin.read(&mut b1).await?;
+            full_buf.extend(&b1);
+            needed = false;
+        }
 
-        full_buf.extend(&b1);
-        full_buf.extend(bbuf.filled());
+        'grabber: for n in 1..5 {
+            let mut bbuf = ReadBuf::new(&mut bbig[0..(4 * n)]);
+            poll_fn(|c| {
+                drop(Pin::new(&mut sdin).poll_read(c, &mut bbuf));
+                Poll::Ready(())
+            })
+            .await;
+            if bbuf.filled().is_empty() {
+                break 'grabber;
+            }
+            full_buf.extend(bbuf.filled());
+        }
 
-        'inner: loop {
-            match parse_event(&full_buf) {
-                ParseRes::Ok(e, n) => {
-                    drop(full_buf.drain(0..n));
-                    //println!("parse : {:?}-{}-{:?}", e, n, full_buf);
-                    ch.send(Ok(e)).await?;
-                }
-                ParseRes::Err(e, n) => {
-                    drop(full_buf.drain(0..n));
-                    //println!("perr : {:?}-{}-{:?}", e, n, full_buf);
-                    ch.send(Err(e)).await?;
-                }
-                ParseRes::Incomplete => {
-                    break 'inner;
-                }
+        match parse_event(&full_buf) {
+            ParseRes::Ok(e, n) => {
+                drop(full_buf.drain(0..n));
+                //println!("parse : {:?}-{}-{:?}", e, n, full_buf);
+                ch.send(Ok(e)).await?;
+            }
+            ParseRes::Err(e, n) => {
+                drop(full_buf.drain(0..n));
+                //println!("perr : {:?}-{}-{:?}", e, n, full_buf);
+                ch.send(Err(e)).await?;
+            }
+            ParseRes::Incomplete => {
+                needed = true;
             }
         }
     }
@@ -119,12 +138,13 @@ impl<T> ParseRes<T> {
 pub fn parse_event(v: &[u8]) -> ParseRes<Event> {
     match b_at!(v, 0) {
         b'\x1B' => {
-            match b_at!(v, 1) {
-                b'O' => match b_at!(v, 2) {
+            match v.get(1).map(|a| *a) {
+                None => ParseRes::Ok(Event::Key(Key::Esc), 1),
+                Some(b'O') => match b_at!(v, 2) {
                     val @ b'P'..=b'S' => ParseRes::Ok(Event::Key(Key::F(1 + val - b'P')), 3),
                     b => ParseRes::Err(SgError(format!("Unexpected '{}'", b)).into(), 2),
                 },
-                b'[' => parse_csi(v, 2), // Control Sequence
+                Some(b'[') => parse_csi(v, 2), // Control Sequence
                 _ => parse_utf8(v, 1).map(|c| Event::Alt(Key::Char(c))),
             }
         }
@@ -179,33 +199,38 @@ fn parse_csi(v: &[u8], off: usize) -> ParseRes<Event> {
             off + 4,
         ),
         b'<' => {
-            let (cb, off) = match p_try!(parse_to_m_semi(v, off + 1)) {
-                ((cb, true), off) => (cb, off),
-                ((cb, false), off) => return ParseRes::Ok(Event::MouseEvent(cb as u8, 0, 0), off),
-            };
-            let (cx, off) = match p_try!(parse_to_m_semi(v, off + 1)) {
-                ((cx, true), off) => (cx, off),
-                ((cx, false), off) => return ParseRes::Ok(Event::MouseEvent(cb as u8, cx, 0), off),
-            };
-            match p_try!(parse_to_m_semi(v, off + 1)) {
-                ((_, true), off) => {
-                    ParseRes::Err(SError("Too many args for mouse event").into(), off)
-                }
-                ((cy, false), off) => ParseRes::Ok(Event::MouseEvent(cb as u8, cx, cy), off),
-            }
+            let ((dat, _), off) = p_try!(csi_data(v, off + 1));
+
+            ParseRes::Ok(
+                Event::MouseEvent(at_safe!(dat, 0) as u8, at_safe!(dat, 1), at_safe!(dat, 2)),
+                off,
+            )
         }
         _ => unimplemented! {},
     }
 }
 
-fn parse_to_m_semi(v: &[u8], off: usize) -> ParseRes<(u16, bool)> {
+fn csi_data(v: &[u8], mut off: usize) -> ParseRes<(Vec<u16>, u8)> {
+    let mut res = Vec::new();
+
+    loop {
+        let ((n, s), noff) = p_try!(parse_to_m_semi(v, off));
+        res.push(n);
+        match s {
+            b';' => off = noff,
+            c => return ParseRes::Ok((res, c), noff),
+        }
+    }
+}
+
+fn parse_to_m_semi(v: &[u8], off: usize) -> ParseRes<(u16, u8)> {
     let mut res: u16 = 0;
     for i in 0..6 {
         match b_at!(v, off + i) {
             c @ b'0'..=b'9' => res = res * 10 + ((c - b'0') as u16),
             b' ' | b'\t' => {}
-            b';' => return ParseRes::Ok((res, true), off + i + 1),
-            b'm' | b'M' => return ParseRes::Ok((res, false), off + i + 1),
+            b';' => return ParseRes::Ok((res, b';'), off + i + 1),
+            c @ 64..=126 => return ParseRes::Ok((res, c), off + i + 1),
             _ => return ParseRes::Err(SError("Unexpected Char in u16").into(), off + i),
         }
     }
