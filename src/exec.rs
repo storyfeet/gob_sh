@@ -11,10 +11,11 @@ pub struct Connection {
 }
 
 impl Connection {
-    pub fn run(
+    #[async_recursion::async_recursion]
+    pub async fn run(
         &self,
         ch: Child,
-        sets: &mut AStore,
+        mut sets: AStore,
         out: Stdio,
         err: Stdio,
     ) -> anyhow::Result<Child> {
@@ -22,7 +23,7 @@ impl Connection {
             .chan
             .as_reader(ch.stdout.e_str("No output")?, ch.stderr.e_str("No errput")?);
 
-        self.target.run(sets, iread.to_stdio(), out, err)
+        self.target.run(&mut sets, iread.to_stdio(), out, err).await
     }
 }
 
@@ -34,7 +35,7 @@ pub struct Exec {
 }
 
 impl Exec {
-    pub fn run(
+    pub async fn run(
         &self,
         s: &mut AStore,
         input: Stdio,
@@ -43,7 +44,7 @@ impl Exec {
     ) -> anyhow::Result<Child> {
         match &self.conn {
             None => Command::new(&self.command)
-                .args(self.args.run(s)?)
+                .args(self.args.run(s).await?)
                 .stdin(input)
                 .stdout(output)
                 .stderr(errput)
@@ -52,23 +53,25 @@ impl Exec {
 
             Some(conn) => {
                 let ch = Command::new(&self.command)
-                    .args(self.args.run(s)?)
+                    .args(self.args.run(s).await?)
                     .stdin(input)
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
                     .spawn()?;
-                conn.run(ch, s, output, errput)
+                conn.run(ch, s.clone(), output, errput).await
             }
         }
     }
 
-    pub fn disown(&self) -> anyhow::Result<u32> {
-        let ch = self.run(
-            &mut Store::new(),
-            Stdio::null(),
-            Stdio::null(),
-            Stdio::null(),
-        )?;
+    pub async fn disown(&self) -> anyhow::Result<u32> {
+        let ch = self
+            .run(
+                &mut AStore::new().await,
+                Stdio::null(),
+                Stdio::null(),
+                Stdio::null(),
+            )
+            .await?;
         Ok(ch.id())
     }
 }

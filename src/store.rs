@@ -51,7 +51,7 @@ pub async fn scope_handler(mut ch_r: mpsc::Receiver<Job>) {
 }
 
 #[derive(Debug, Clone)]
-pub struct Store {
+struct Store {
     scopes: Vec<BTreeMap<String, Data>>,
 }
 

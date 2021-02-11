@@ -30,3 +30,4 @@ clap = "2.33.3"
 ru_complete = {path="../ru_complete/"}
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.12"
+async-recursion = "0.2"

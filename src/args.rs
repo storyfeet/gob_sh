@@ -1,5 +1,5 @@
 use crate::exec::Exec;
-use crate::store::{Data, Store};
+use crate::store::{AStore, Data};
 use err_tools::*;
 use std::io::Read;
 use std::process::Stdio;
@@ -28,10 +28,10 @@ fn try_glob(s: &str, args: &mut Vec<String>) {
 }
 
 impl Args {
-    pub fn run(&self, sets: &mut Store) -> anyhow::Result<Vec<String>> {
+    pub async fn run(&self, sets: &mut AStore) -> anyhow::Result<Vec<String>> {
         let mut res = Vec::new();
         for a in &self.0 {
-            match a.run(sets)? {
+            match a.run(sets.clone()).await? {
                 Data::RawStr(s) => res.push(s),
                 Data::Str(s) => try_glob(&s, &mut res),
                 Data::List(l) => {
@@ -59,21 +59,22 @@ pub enum Arg {
 }
 
 impl Arg {
-    pub fn run(&self, sets: &mut Store) -> anyhow::Result<Data> {
+    #[async_recursion::async_recursion]
+    pub async fn run(&self, sets: AStore) -> anyhow::Result<Data> {
         match self {
             Arg::RawString(s) => Ok(Data::RawStr(s.to_string())),
             Arg::StringLit(s) => Ok(Data::Str(s.to_string())),
             Arg::StringExpr(v) => {
                 let mut s = String::new();
                 for a in v {
-                    s.push_str(&a.run(sets)?.to_string());
+                    s.push_str(&a.run(sets).await?.to_string());
                 }
                 Ok(Data::Str(s.to_string()))
             }
             Arg::HomeExpr(v) => {
                 let mut hp = std::env::var("HOME").unwrap_or(String::new());
                 for a in v {
-                    hp.push_str(&a.run(sets)?.to_string());
+                    hp.push_str(&a.run(sets).await?.to_string());
                 }
                 Ok(Data::Str(hp))
             }
@@ -81,9 +82,9 @@ impl Arg {
                 let hp = std::env::var("HOME").unwrap_or(String::new());
                 Ok(Data::Str(format!("{}{}", hp, s)))
             }
-            Arg::Var(name) => sets.get(name).e_str("No Var by that name"),
+            Arg::Var(name) => sets.get(name.clone()).await.e_str("No Var by that name"),
             Arg::Command(ex) => {
-                let ch = ex.run(sets, Stdio::null(), Stdio::piped(), Stdio::inherit())?;
+                let ch = ex.run(&mut sets, Stdio::null(), Stdio::piped(), Stdio::inherit())?;
                 let mut buf = String::new();
                 ch.stdout
                     .e_str("No Return Buffer")?
@@ -94,7 +95,7 @@ impl Arg {
                 Ok(Data::RawStr(buf))
             }
             Arg::ArrCommand(ex) => {
-                let ch = ex.run(sets, Stdio::null(), Stdio::piped(), Stdio::inherit())?;
+                let ch = ex.run(&mut sets, Stdio::null(), Stdio::piped(), Stdio::inherit())?;
                 let mut buf = String::new();
                 ch.stdout
                     .e_str("No Return Buffer")?
