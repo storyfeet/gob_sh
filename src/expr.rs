@@ -19,10 +19,12 @@ pub enum Expr {
 
 impl Expr {
     #[async_recursion::async_recursion]
-    pub async fn run(&self, mut s: AStore) -> anyhow::Result<bool> {
+    pub async fn run(&self, s: AStore) -> anyhow::Result<bool> {
         match self {
             Expr::Exec(e) => {
-                let mut ch = e.run(&mut s, Stdio::inherit(), Stdio::inherit(), Stdio::inherit())?;
+                let mut ch = e
+                    .run(&s, Stdio::inherit(), Stdio::inherit(), Stdio::inherit())
+                    .await?;
                 ch.wait().map(|e| e.success()).map_err(Into::into)
             }
             Expr::Write {
@@ -32,7 +34,9 @@ impl Expr {
                 append,
             } => {
                 let filename = filename.run(s.clone()).await?.to_string();
-                let ch = exec.run(&mut s, Stdio::inherit(), Stdio::piped(), Stdio::piped())?;
+                let ch = exec
+                    .run(&s, Stdio::inherit(), Stdio::piped(), Stdio::piped())
+                    .await?;
                 let mut iread =
                     chan.as_reader(ch.stdout.e_str("No Output")?, ch.stderr.e_str("No ErrPut")?);
 
@@ -46,11 +50,11 @@ impl Expr {
                     .map(|_| true)
                     .e_str("Could not copy to output file")
             }
-            Expr::And(a, b) => match a.run(s).await {
+            Expr::And(a, b) => match a.run(s.clone()).await {
                 Ok(true) => b.run(s).await,
                 v => v,
             },
-            Expr::Or(a, b) => match a.run(s).await {
+            Expr::Or(a, b) => match a.run(s.clone()).await {
                 Ok(false) => b.run(s).await,
                 v => v,
             },

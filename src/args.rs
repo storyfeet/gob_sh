@@ -28,7 +28,7 @@ fn try_glob(s: &str, args: &mut Vec<String>) {
 }
 
 impl Args {
-    pub async fn run(&self, sets: &mut AStore) -> anyhow::Result<Vec<String>> {
+    pub async fn run(&self, sets: &AStore) -> anyhow::Result<Vec<String>> {
         let mut res = Vec::new();
         for a in &self.0 {
             match a.run(sets.clone()).await? {
@@ -67,14 +67,14 @@ impl Arg {
             Arg::StringExpr(v) => {
                 let mut s = String::new();
                 for a in v {
-                    s.push_str(&a.run(sets).await?.to_string());
+                    s.push_str(&a.run(sets.clone()).await?.to_string());
                 }
                 Ok(Data::Str(s.to_string()))
             }
             Arg::HomeExpr(v) => {
                 let mut hp = std::env::var("HOME").unwrap_or(String::new());
                 for a in v {
-                    hp.push_str(&a.run(sets).await?.to_string());
+                    hp.push_str(&a.run(sets.clone()).await?.to_string());
                 }
                 Ok(Data::Str(hp))
             }
@@ -84,7 +84,9 @@ impl Arg {
             }
             Arg::Var(name) => sets.get(name.clone()).await.e_str("No Var by that name"),
             Arg::Command(ex) => {
-                let ch = ex.run(&mut sets, Stdio::null(), Stdio::piped(), Stdio::inherit())?;
+                let ch = ex
+                    .run(&sets, Stdio::null(), Stdio::piped(), Stdio::inherit())
+                    .await?;
                 let mut buf = String::new();
                 ch.stdout
                     .e_str("No Return Buffer")?
@@ -95,7 +97,9 @@ impl Arg {
                 Ok(Data::RawStr(buf))
             }
             Arg::ArrCommand(ex) => {
-                let ch = ex.run(&mut sets, Stdio::null(), Stdio::piped(), Stdio::inherit())?;
+                let ch = ex
+                    .run(&sets, Stdio::null(), Stdio::piped(), Stdio::inherit())
+                    .await?;
                 let mut buf = String::new();
                 ch.stdout
                     .e_str("No Return Buffer")?

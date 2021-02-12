@@ -6,13 +6,18 @@ use tokio::sync::{mpsc, oneshot};
 #[derive(Clone)]
 pub struct AStore {
     ch: mpsc::Sender<Job>,
+    global: mpsc::Sender<Job>,
 }
 
 impl AStore {
-    pub async fn new() -> Self {
-        let (ch, ch_r) = mpsc::channel(5);
-        tokio::spawn(scope_handler(ch_r));
-        Self { ch }
+    pub async fn new_global() -> Self {
+        let (global, global_r) = mpsc::channel(5);
+
+        tokio::spawn(global_handler(global_r));
+        Self {
+            ch: global.clone(),
+            global,
+        }
     }
 
     pub async fn get(&self, s: String) -> Option<Data> {
@@ -26,34 +31,72 @@ impl AStore {
     }
 
     pub async fn set(&self, s: String, d: Data) {
-        self.ch.send(Job::Set(s, d)).await.ok();
+        set(&self.ch, s, d).await
     }
+
+    pub async fn child(&self) -> AStore {
+        let (ch, ch_r) = mpsc::channel(5);
+        tokio::spawn(child_handler(ch_r, self.ch.clone()));
+        Self {
+            ch,
+            global: self.global.clone(),
+        }
+    }
+}
+
+async fn set(ch: &mpsc::Sender<Job>, s: String, d: Data) {
+    let (ch_s, ch_r) = oneshot::channel();
+    ch.send(Job::Set(s, d, ch_s)).await.ok();
+    drop(ch_r.await)
 }
 
 pub enum Job {
     Get(String, oneshot::Sender<Option<Data>>),
-    Set(String, Data),
+    Set(String, Data, oneshot::Sender<()>),
     Let(String, Data),
 }
 
-///Consider accepting an optional parent to this method.
-pub async fn scope_handler(mut ch_r: mpsc::Receiver<Job>) {
-    let mut store = Store::new();
+pub async fn global_handler(mut ch_r: mpsc::Receiver<Job>) {
+    let mut store = BTreeMap::new();
     while let Some(j) = ch_r.recv().await {
         match j {
-            Job::Let(s, d) => store.let_set(s, d),
-            Job::Set(s, d) => store.set(s, d),
+            Job::Let(s, d) => drop(store.insert(s, d)),
+            Job::Set(s, d, ch) => {
+                store.insert(s, d);
+                drop(ch.send(()))
+            }
             Job::Get(s, ch_s) => {
-                drop(ch_s.send(store.get(&s)));
+                drop(ch_s.send(store.get(&s).map(|c| c.clone())));
             }
         }
     }
 }
 
+pub async fn child_handler(mut ch_r: mpsc::Receiver<Job>, parent: mpsc::Sender<Job>) {
+    let mut store = BTreeMap::new();
+    while let Some(j) = ch_r.recv().await {
+        match j {
+            Job::Let(s, d) => drop(store.insert(s, d)),
+            Job::Set(s, d, ch) => match store.get(&s) {
+                Some(_) => drop(store.insert(s, d)),
+                None => {
+                    set(&parent, s, d).await;
+                    drop(ch.send(()));
+                }
+            },
+            Job::Get(s, ch_s) => {
+                drop(ch_s.send(store.get(&s).map(|c| c.clone())));
+            }
+        }
+    }
+}
+
+/*
 #[derive(Debug, Clone)]
 struct Store {
     scopes: Vec<BTreeMap<String, Data>>,
 }
+*/
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Data {
@@ -94,50 +137,5 @@ impl Data {
             }
             d => vec.push(d.to_string()),
         }
-    }
-}
-
-impl Store {
-    pub fn new() -> Self {
-        Self {
-            scopes: vec![BTreeMap::new()],
-        }
-    }
-    pub fn get(&self, k: &str) -> Option<Data> {
-        let l = self.scopes.len();
-        for i in 0..l {
-            let n = (l - 1) - i;
-            if let Some(ov) = self.scopes[n].get(k) {
-                return Some(ov.clone());
-            }
-        }
-
-        std::env::var(k).ok().map(Data::Str)
-    }
-
-    pub fn let_set(&mut self, k: String, v: Data) {
-        let last = self.scopes.len() - 1;
-        self.scopes[last].insert(k, v);
-    }
-
-    pub fn push(&mut self) {
-        self.scopes.push(BTreeMap::new());
-    }
-    pub fn pop(&mut self) {
-        if self.scopes.len() > 1 {
-            self.scopes.pop();
-        }
-    }
-    pub fn set(&mut self, k: String, v: Data) {
-        let l = self.scopes.len();
-        for i in 0..l {
-            let n = (l - 1) - i;
-            if let Some(ov) = self.scopes[n].get_mut(&k) {
-                *ov = v;
-                return;
-            }
-        }
-
-        self.let_set(k, v)
     }
 }

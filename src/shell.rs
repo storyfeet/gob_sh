@@ -26,7 +26,7 @@ impl Shell {
         history.load_history();
         Shell {
             prompt: Prompt::new(">>".to_string()),
-            store: AStore::new().await,
+            store: AStore::new_global().await,
             history,
         }
     }
@@ -69,7 +69,7 @@ impl Shell {
             Complete::Many(v) => self.prompt.options = Some((tabr.with_end(clen), v)),
         }
     }
-    pub fn on_enter(&mut self, rt: &mut RT) {
+    pub async fn on_enter(&mut self, rt: &mut RT) {
         let c_line = &self.prompt.cursor.s;
         self.history.pos = None;
         self.history.guesses = None;
@@ -85,14 +85,14 @@ impl Shell {
                 print!("\n\r");
                 rt.flush().ok();
                 for s in v {
-                    match s.run(&mut self.store) {
+                    match s.run(&mut self.store).await {
                         Ok(false) => print!("\n\rOK - fail\n\r"),
                         Err(e) => print!("\n\rErr - {}\n\r", e),
                         _ => {}
                     }
                 }
                 rt.activate_raw_mode().ok();
-                self.reset(rt);
+                self.reset(rt).await;
                 self.prompt.unprint(rt);
                 match hist_r {
                     Err(e) => self.prompt.message = Some(e.to_string()),
@@ -104,15 +104,17 @@ impl Shell {
         }
     }
 
-    pub fn reset(&mut self, rt: &mut RT) {
+    pub async fn reset(&mut self, rt: &mut RT) {
         let pt = self
             .store
-            .get("RU_PROMPT")
+            .get("RU_PROMPT".to_string())
+            .await
             .map(|d| d.to_string())
             .unwrap_or(String::from(">>"));
         let pt = match parser::QuotedString.parse_s(&pt) {
             Ok(v) => v
-                .run(&mut self.store)
+                .run(self.store.clone())
+                .await
                 .map(|s| s.to_string())
                 .unwrap_or("PromptErr:>>".to_string()),
             Err(_) => pt,
@@ -121,13 +123,13 @@ impl Shell {
         rt.flush().ok();
     }
 
-    pub fn source_path<P: AsRef<Path>>(&mut self, p: P) -> anyhow::Result<()> {
+    pub async fn source_path<P: AsRef<Path>>(&mut self, p: P) -> anyhow::Result<()> {
         let mut f = std::fs::File::open(p)?;
         let mut buf = String::new();
         f.read_to_string(&mut buf)?;
         let p = parser::Lines.parse_s(&buf).map_err(|e| e.strung())?;
         for v in p {
-            v.run(&mut self.store).ok();
+            v.run(&self.store).await.ok();
         }
         Ok(())
     }
@@ -143,9 +145,9 @@ impl Shell {
         }
     }
 
-    pub fn do_key(&mut self, k: Key, rt: &mut RT) -> anyhow::Result<Action> {
+    pub async fn do_key(&mut self, k: Key, rt: &mut RT) -> anyhow::Result<Action> {
         match k {
-            Key::Char('\n') | Key::Enter => self.on_enter(rt),
+            Key::Char('\n') | Key::Enter => self.on_enter(rt).await,
             Key::Char('\t') => self.do_print(rt, Shell::tab_complete),
             Key::Char(c) => self.prompt.do_print(rt, |p| p.add_char(c)),
             Key::BackSpace => self.prompt.do_cursor(rt, Cursor::backspace),
@@ -204,9 +206,9 @@ impl Shell {
         }
         Ok(())
     }
-    pub fn do_event(&mut self, e: Event, rt: &mut RT) -> anyhow::Result<Action> {
+    pub async fn do_event(&mut self, e: Event, rt: &mut RT) -> anyhow::Result<Action> {
         match e {
-            Event::Key(k) => return self.do_key(k, rt),
+            Event::Key(k) => return self.do_key(k, rt).await,
             Event::Unsupported(e) => self.do_unsupported(&e, rt)?,
             Event::Ctrl(k) => self.do_ctrl(k, rt),
             e => print!("Event {:?}\n\r", e),

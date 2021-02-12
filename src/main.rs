@@ -21,10 +21,11 @@ use clap::*;
 //use err_tools::*;
 use shell::Shell;
 use std::io::*;
-use store::Store;
+use store::AStore;
 //use termion::event::Event;
 //use termion::input::TermReadEventsAndRaw;
 use termion::raw::{IntoRawMode, RawTerminal};
+use tokio::io::AsyncReadExt;
 
 type RT = RawTerminal<Stdout>;
 
@@ -34,7 +35,8 @@ pub enum Action {
     Quit,
 }
 
-pub fn main() -> anyhow::Result<()> {
+#[tokio::main]
+pub async fn main() -> anyhow::Result<()> {
     let clp = App::new("Ru Shell")
         .about("A shell with multiline editing and curly syntax")
         .version(crate_version!())
@@ -49,50 +51,45 @@ pub fn main() -> anyhow::Result<()> {
         .get_matches();
 
     if let Some(_sub) = clp.subcommand_matches("server") {
-        return server_main();
+        //Tab complete server: not yet used in main.
+        ru_complete::main().await
     }
 
-    shell_main(&clp)
+    shell_main(&clp).await
 }
 
-fn server_main() -> anyhow::Result<()> {
-    let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(ru_complete::main());
-    Ok(())
-}
-
-fn shell_main(clp: &clap::ArgMatches) -> anyhow::Result<()> {
+async fn shell_main<'a>(clp: &'a clap::ArgMatches<'a>) -> anyhow::Result<()> {
+    let store = AStore::new_global().await;
     //TODOsort out args properly
     match clp.value_of("fname") {
         Some(v) => {
             println!("Got file '{}'", v);
-            return run_file(v, &mut Store::new()).map(|_| ());
+            return run_file(v, &store).await.map(|_| ());
         }
         None => {}
     }
 
     match termion::is_tty(&stdin()) {
-        true => {
-            let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(run_interactive())
-        }
-        false => run_stream_out(&mut stdin(), &mut Store::new()).map(|_| ()),
+        true => run_interactive().await,
+        false => run_stream_out(&mut tokio::io::stdin(), &store)
+            .await
+            .map(|_| ()),
     }
 }
 
 pub async fn run_interactive() -> anyhow::Result<()> {
     ctrlc::set_handler(move || println!("Kill Signal")).ok();
-    let mut shell = Shell::new();
+    let mut shell = Shell::new().await;
     let mut rt = stdout().into_raw_mode()?;
 
     let mut init = std::path::PathBuf::from(std::env::var("HOME").unwrap_or("".to_string()));
     init.push(".config/rushell/init.rush");
 
-    if let Err(e) = shell.source_path(init) {
+    if let Err(e) = shell.source_path(init).await {
         println!("Error sourcing home_config : {}", e);
     }
 
-    shell.reset(&mut rt);
+    shell.reset(&mut rt).await;
 
     let (ch_s, mut ch_r) = mpsc::channel(10);
 
@@ -101,7 +98,7 @@ pub async fn run_interactive() -> anyhow::Result<()> {
     while let Some(ae) = ch_r.recv().await {
         match ae {
             Ok(Event::Ctrl(Key::Char('d'))) => return Ok(()),
-            Ok(e) => drop(shell.do_event(e, &mut rt)?),
+            Ok(e) => drop(shell.do_event(e, &mut rt).await?),
             Err(e) => shell
                 .prompt
                 .do_print(&mut rt, |p| p.message = Some(e.to_string())),
@@ -110,15 +107,17 @@ pub async fn run_interactive() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn run_file<P: AsRef<std::path::Path>>(fname: P, store: &mut Store) -> anyhow::Result<bool> {
-    let mut f = std::fs::File::open(fname)?;
-    run_stream_out(&mut f, store)
+pub async fn run_file<P: AsRef<std::path::Path>>(fname: P, store: &AStore) -> anyhow::Result<bool> {
+    let mut f = tokio::fs::File::open(fname).await?;
+    run_stream_out(&mut f, store).await
 }
 
-pub fn run_stream_out<T: std::io::Read>(t: &mut T, store: &mut Store) -> anyhow::Result<bool> {
+pub async fn run_stream_out<T: tokio::io::AsyncRead + Unpin>(
+    t: &mut T,
+    store: &AStore,
+) -> anyhow::Result<bool> {
     let mut s = String::new();
-    t.read_to_string(&mut s)?;
+    t.read_to_string(&mut s).await?;
     let ar = parser::Lines.parse_s(&s).map_err(|e| e.strung())?;
-    store.push();
-    crate::statement::run_block_pop(&ar, store)
+    crate::statement::run_block(&ar, store).await
 }

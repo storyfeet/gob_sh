@@ -24,21 +24,21 @@ pub enum Statement {
 }
 
 impl Statement {
-    pub async fn run(&self, s: &mut AStore) -> anyhow::Result<bool> {
+    pub async fn run(&self, s: &AStore) -> anyhow::Result<bool> {
         match self {
-            Statement::Expr(e) => e.run(s),
+            Statement::Expr(e) => e.run(s.clone()).await,
             Statement::Let(names, args) => {
-                let ag = args.run(s)?;
+                let ag = args.run(&s).await?;
                 if ag.len() < names.len() {
                     return e_str("Not enough results for var names");
                 }
                 for (n, k) in names.iter().enumerate() {
-                    s.set(k.to_string(), Data::Str(ag[n].clone()))
+                    s.set(k.to_string(), Data::Str(ag[n].clone())).await
                 }
                 Ok(true)
             }
             Statement::Export(names, args) => {
-                let ag = args.run(s)?;
+                let ag = args.run(s).await?;
                 if ag.len() < names.len() {
                     return e_str("Not enough results for var names");
                 }
@@ -49,7 +49,7 @@ impl Statement {
                 Ok(true)
             }
             Statement::Cd(arg) => {
-                let mut run_res = arg.run(s)?.to_string();
+                let mut run_res = arg.run(s.clone()).await?.to_string();
                 if let Some('~') = run_res.chars().next() {
                     let hm = std::env::var("HOME")?;
                     run_res = run_res.replace('~', &hm);
@@ -65,56 +65,48 @@ impl Statement {
                 Ok(true)
             }
             Statement::For { vars, args, block } => {
-                let ag = args.run(s)?;
+                let ag = args.run(s).await?;
                 let mut it = ag.into_iter();
                 loop {
-                    s.push();
                     for vn in vars {
                         let nx = match it.next() {
                             Some(n) => n,
                             None => {
-                                s.pop();
                                 return Ok(true);
                             }
                         };
-                        s.set(vn.to_string(), Data::Str(nx.clone()));
+                        s.set(vn.to_string(), Data::Str(nx.clone())).await;
                     }
-                    run_block_pop(&block, s)?;
+                    run_block(&block, &s.child().await).await?;
                 }
             }
-            Statement::If { expr, block, else_ } => match expr.run(s)? {
-                true => {
-                    s.push();
-                    run_block_pop(&block, s)
-                }
+            Statement::If { expr, block, else_ } => match expr.run(s.clone()).await? {
+                true => run_block(&block, &s.child().await).await,
                 false => match &else_ {
-                    Some(ee) => {
-                        s.push();
-                        run_block_pop(&ee, s)
-                    }
+                    Some(ee) => run_block(&ee, &s.child().await).await,
+
                     None => Ok(true),
                 },
             },
             Statement::Disown(e) => {
-                let id = e.disown()?;
+                let id = e.disown().await?;
                 println!("PID = {}", id);
                 Ok(true)
             }
-            Statement::Dot(p) => crate::run_file(p, s),
+            Statement::Dot(p) => crate::run_file(p, s).await,
         }
     }
 }
 
-pub fn run_block_pop(block: &[Statement], store: &mut Store) -> anyhow::Result<bool> {
+#[async_recursion::async_recursion]
+pub async fn run_block(block: &[Statement], store: &AStore) -> anyhow::Result<bool> {
     for st in block {
-        match st.run(store) {
+        match st.run(store).await {
             Ok(_) => {}
             Err(e) => {
-                store.pop();
                 return Err(e);
             }
         }
     }
-    store.pop();
     Ok(true)
 }

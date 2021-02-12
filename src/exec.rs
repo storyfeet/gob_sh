@@ -15,7 +15,7 @@ impl Connection {
     pub async fn run(
         &self,
         ch: Child,
-        mut sets: AStore,
+        sets: AStore,
         out: Stdio,
         err: Stdio,
     ) -> anyhow::Result<Child> {
@@ -23,7 +23,7 @@ impl Connection {
             .chan
             .as_reader(ch.stdout.e_str("No output")?, ch.stderr.e_str("No errput")?);
 
-        self.target.run(&mut sets, iread.to_stdio(), out, err).await
+        self.target.run(&sets, iread.to_stdio(), out, err).await
     }
 }
 
@@ -37,7 +37,7 @@ pub struct Exec {
 impl Exec {
     pub async fn run(
         &self,
-        s: &mut AStore,
+        s: &AStore,
         input: Stdio,
         output: Stdio,
         errput: Stdio,
@@ -66,7 +66,7 @@ impl Exec {
     pub async fn disown(&self) -> anyhow::Result<u32> {
         let ch = self
             .run(
-                &mut AStore::new().await,
+                &mut AStore::new_global().await,
                 Stdio::null(),
                 Stdio::null(),
                 Stdio::null(),
