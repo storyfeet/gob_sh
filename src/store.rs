@@ -21,9 +21,7 @@ impl AStore {
     }
 
     pub async fn get(&self, s: String) -> Option<Data> {
-        let (ret_s, ret_r) = oneshot::channel();
-        self.ch.send(Job::Get(s, ret_s)).await.ok()?;
-        ret_r.await.unwrap_or(None)
+        get(&self.ch, s).await
     }
 
     pub async fn let_set(&self, s: String, d: Data) {
@@ -48,6 +46,12 @@ async fn set(ch: &mpsc::Sender<Job>, s: String, d: Data) {
     let (ch_s, ch_r) = oneshot::channel();
     ch.send(Job::Set(s, d, ch_s)).await.ok();
     drop(ch_r.await)
+}
+
+pub async fn get(ch: &mpsc::Sender<Job>, s: String) -> Option<Data> {
+    let (ret_s, ret_r) = oneshot::channel();
+    ch.send(Job::Get(s, ret_s)).await.ok()?;
+    ret_r.await.unwrap_or(None)
 }
 
 pub enum Job {
@@ -85,7 +89,11 @@ pub async fn child_handler(mut ch_r: mpsc::Receiver<Job>, parent: mpsc::Sender<J
                 }
             },
             Job::Get(s, ch_s) => {
-                drop(ch_s.send(store.get(&s).map(|c| c.clone())));
+                let res = match store.get(&s) {
+                    None => get(&parent, s).await,
+                    Some(s) => Some(s.clone()),
+                };
+                drop(ch_s.send(res));
             }
         }
     }

@@ -33,7 +33,7 @@ impl Statement {
                     return e_str("Not enough results for var names");
                 }
                 for (n, k) in names.iter().enumerate() {
-                    s.set(k.to_string(), Data::Str(ag[n].clone())).await
+                    s.let_set(k.to_string(), Data::Str(ag[n].clone())).await
                 }
                 Ok(true)
             }
