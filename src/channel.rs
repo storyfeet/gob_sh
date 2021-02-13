@@ -1,14 +1,19 @@
 //use crate::settings::Settings;
 //use err_tools::*;
-use std::io::Read;
-use std::process::{ChildStderr, ChildStdout, Stdio};
+//use std::io::Read;
+use std::convert::TryInto;
+use std::pin::Pin;
+use std::process::Stdio;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, ReadBuf};
+use tokio::process::{ChildStderr, ChildStdout};
 
 pub enum ChannelRead {
     Out(ChildStdout),
     Err(ChildStderr),
     Both(ChildStdout, ChildStderr),
 }
-
+/*
 impl Read for ChannelRead {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         match self {
@@ -21,14 +26,32 @@ impl Read for ChannelRead {
         }
     }
 }
+*/
+
+impl AsyncRead for ChannelRead {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        match self.get_mut() {
+            ChannelRead::Out(ref mut r) => Pin::new(r).poll_read(cx, buf),
+            ChannelRead::Err(ref mut r) => Pin::new(r).poll_read(cx, buf),
+            ChannelRead::Both(ref mut o, ref mut e) => match Pin::new(o).poll_read(cx, buf) {
+                Poll::Ready(Ok(())) => Poll::Ready(Ok(())),
+                _ => Pin::new(e).poll_read(cx, buf),
+            },
+        }
+    }
+}
 
 impl ChannelRead {
-    pub fn to_stdio(self) -> Stdio {
-        match self {
-            ChannelRead::Out(o) => Stdio::from(o),
-            ChannelRead::Err(o) => Stdio::from(o),
-            ChannelRead::Both(o, _) => Stdio::from(o),
-        }
+    pub fn to_stdio(self) -> anyhow::Result<Stdio> {
+        Ok(match self {
+            ChannelRead::Out(o) => o.try_into()?,
+            ChannelRead::Err(o) => o.try_into()?,
+            ChannelRead::Both(o, _) => o.try_into()?,
+        })
     }
 }
 

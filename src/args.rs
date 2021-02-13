@@ -1,8 +1,8 @@
 use crate::exec::Exec;
 use crate::store::{AStore, Data};
 use err_tools::*;
-use std::io::Read;
 use std::process::Stdio;
+use tokio::io::AsyncReadExt;
 
 #[derive(Clone, Debug)]
 pub struct Args(pub Vec<Arg>);
@@ -91,6 +91,7 @@ impl Arg {
                 ch.stdout
                     .e_str("No Return Buffer")?
                     .read_to_string(&mut buf)
+                    .await
                     .ok();
 
                 //ch.wait(); TODO work out if this is needed
@@ -104,6 +105,7 @@ impl Arg {
                 ch.stdout
                     .e_str("No Return Buffer")?
                     .read_to_string(&mut buf)
+                    .await
                     .ok();
 
                 let v: Vec<Data> = buf

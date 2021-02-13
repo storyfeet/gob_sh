@@ -25,7 +25,7 @@ impl Expr {
                 let mut ch = e
                     .run(&s, Stdio::inherit(), Stdio::inherit(), Stdio::inherit())
                     .await?;
-                ch.wait().map(|e| e.success()).map_err(Into::into)
+                ch.wait().await.map(|e| e.success()).map_err(Into::into)
             }
             Expr::Write {
                 exec,
@@ -40,13 +40,15 @@ impl Expr {
                 let mut iread =
                     chan.as_reader(ch.stdout.e_str("No Output")?, ch.stderr.e_str("No ErrPut")?);
 
-                let mut f = std::fs::OpenOptions::new()
+                let mut f = tokio::fs::OpenOptions::new()
                     .append(*append)
                     .truncate(!*append)
                     .write(true)
                     .create(true)
-                    .open(filename)?;
-                std::io::copy(&mut iread, &mut f)
+                    .open(filename)
+                    .await?;
+                tokio::io::copy(&mut iread, &mut f)
+                    .await
                     .map(|_| true)
                     .e_str("Could not copy to output file")
             }

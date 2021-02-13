@@ -2,7 +2,9 @@ use crate::args::Args;
 use crate::channel::*;
 use crate::store::AStore;
 use err_tools::*;
-use std::process::{Child, Command, Stdio};
+//use std::convert::TryInto;
+use std::process::Stdio;
+use tokio::process::{Child, Command};
 
 #[derive(Clone, Debug)]
 pub struct Connection {
@@ -21,9 +23,9 @@ impl Connection {
     ) -> anyhow::Result<Child> {
         let iread = self
             .chan
-            .as_reader(ch.stdout.e_str("No output")?, ch.stderr.e_str("No errput")?);
+            .as_reader(ch.stdout.e_str("no output")?, ch.stderr.e_str("no errput")?);
 
-        self.target.run(&sets, iread.to_stdio(), out, err).await
+        self.target.run(&sets, iread.to_stdio()?, out, err).await
     }
 }
 
@@ -72,6 +74,6 @@ impl Exec {
                 Stdio::null(),
             )
             .await?;
-        Ok(ch.id())
+        ch.id().e_str("No ID on process")
     }
 }
