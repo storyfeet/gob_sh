@@ -13,16 +13,19 @@ use std::path::Path;
 
 use tokio::sync::mpsc;
 
+pub type ESend = mpsc::Sender<anyhow::Result<Event>>;
+
 pub struct Shell {
     pub prompt: Prompt,
     pub store: AStore,
     pub history: HistoryStore,
-    pub e_sender: mpsc::Sender<Event>,
+    e_sender: ESend,
+    ready: bool,
 }
 
 impl Shell {
     /// Invariants : Settings must always have at least one layer in scope.
-    pub async fn new(e_sender: mpsc::Sender<Event>) -> Shell {
+    pub async fn new(e_sender: ESend) -> Shell {
         let mut history = HistoryStore::new();
         history.load_history();
         Shell {
@@ -30,36 +33,11 @@ impl Shell {
             store: AStore::new_global().await,
             history,
             e_sender,
+            ready: true,
         }
     }
-
-    pub fn try_prompt(&mut self) {
-        if let Some(v) = &mut self.waiting {
-            if let Ok(v) = v.try_recv() {
-                self.show_pline_or_err(v);
-            }
-        }
-    }
-
-    pub fn show_pline_or_err(&mut self, a: anyhow::Result<String>) {
-        match a {
-            Ok(s) => self.prompt.pr_line = s,
-            Err(e) => self.prompt.message = Some(e.to_string()),
-        }
-    }
-
-    pub async fn wait_prompt(&mut self) {
-        if let Some(f) = self.waiting.take() {
-            match f.await {
-                Ok(v) => self.show_pline_or_err(v),
-                Err(e) => self.prompt.message = Some(e.to_string()),
-            }
-        }
-    }
-
     pub fn do_print<T, F: Fn(&mut Self) -> T>(&mut self, rt: &mut RT, f: F) -> T {
         self.prompt.unprint(rt);
-        self.try_prompt();
         let r = f(self);
         self.prompt.print(rt);
         r
@@ -132,28 +110,25 @@ impl Shell {
     }
 
     pub async fn reset(&mut self, rt: &mut RT) {
-        let pt = self
-            .store
-            .get("RU_PROMPT".to_string())
-            .await
-            .map(|d| d.to_string())
-            .unwrap_or(String::from(">>"));
-        let pt = match parser::QuotedString.parse_s(&pt) {
-            Ok(v) => v
-                .run(self.store.clone())
-                .await
-                .map(|s| s.to_string())
-                .unwrap_or("PromptErr:>>".to_string()),
-            Err(_) => pt,
-        };
-        self.prompt.reset(pt, rt);
-        rt.flush().ok();
+        async fn do_prompt(st: AStore, ch: ESend) {
+            let s = st.do_prompt().await;
+            ch.send(Ok(Event::Prompt(s))).await.ok();
+        }
+
+        tokio::spawn(do_prompt(self.store.clone(), self.e_sender.clone()));
+        self.prompt.reset(">>".to_string(), rt);
     }
 
     pub async fn source_path<P: 'static + AsRef<Path> + Send>(&mut self, p: P) {
-        self.wait_prompt().await;
-        self.waiting =
-            Some(crate::future_util::to_channel(self.store.clone().source_path(p)).await);
+        self.ready = false;
+
+        async fn do_load<P: 'static + AsRef<Path>>(s: AStore, p: P, ch: ESend) {
+            s.source_path(p).await.ok();
+            let r_str = s.do_prompt().await;
+            ch.send(Ok(Event::Prompt(r_str))).await.ok();
+        }
+
+        tokio::spawn(do_load(self.store.clone(), p, self.e_sender.clone()));
     }
 
     pub fn do_ctrl(&mut self, k: Key, rt: &mut RT) {
@@ -233,6 +208,7 @@ impl Shell {
             Event::Key(k) => return self.do_key(k, rt).await,
             Event::Unsupported(e) => self.do_unsupported(&e, rt)?,
             Event::Ctrl(k) => self.do_ctrl(k, rt),
+            Event::Prompt(s) => self.prompt.do_print(rt, |p| p.pr_line = s.clone()),
             e => print!("Event {:?}\n\r", e),
         }
         Ok(Action::Cont)

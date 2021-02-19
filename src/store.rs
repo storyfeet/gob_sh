@@ -45,21 +45,19 @@ impl AStore {
         }
     }
 
-    pub async fn source_path<P: AsRef<Path>>(self, p: P) -> anyhow::Result<String> {
+    pub async fn source_path<P: AsRef<Path>>(&self, p: P) -> anyhow::Result<()> {
         let mut f = match tokio::fs::File::open(p).await {
             Ok(f) => f,
-            Err(_) => return Ok(self.do_prompt().await), //No file is not an error
+            Err(_) => return Ok(()), //No file is not an error
         };
         let mut buf = String::new();
         f.read_to_string(&mut buf).await?;
         let p = parser::Lines.parse_s(&buf).map_err(|e| e.strung())?;
         for v in p {
-            v.run(&self).await.ok();
+            v.run(self).await.ok();
         }
 
-        //do prompt
-
-        Ok(self.do_prompt().await)
+        Ok(())
     }
 
     pub async fn do_prompt(&self) -> String {
@@ -107,7 +105,11 @@ pub async fn global_handler(mut ch_r: mpsc::Receiver<Job>) {
                 drop(ch.send(()))
             }
             Job::Get(s, ch_s) => {
-                drop(ch_s.send(store.get(&s).map(|c| c.clone())));
+                let res = match store.get(&s) {
+                    Some(v) => Some(v.clone()),
+                    None => std::env::var(&s).map(|s| Data::Str(s)).ok(),
+                };
+                drop(ch_s.send(res));
             }
         }
     }
