@@ -3,6 +3,7 @@ mod channel;
 mod cursor;
 mod exec;
 mod expr;
+mod future_util;
 mod inputs;
 mod parser;
 mod partial;
@@ -84,10 +85,7 @@ pub async fn run_interactive() -> anyhow::Result<()> {
 
     let mut init = std::path::PathBuf::from(std::env::var("HOME").unwrap_or("".to_string()));
     init.push(".config/rushell/init.rush");
-
-    if let Err(e) = shell.source_path(init).await {
-        println!("Error sourcing home_config : {}", e);
-    }
+    shell.source_path(init).await;
 
     shell.reset(&mut rt).await;
 

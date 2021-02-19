@@ -1,6 +1,10 @@
 use std::collections::BTreeMap;
 use std::fmt::{self, Display};
+use std::path::Path;
 
+use crate::parser;
+use bogobble::traits::*;
+use tokio::io::AsyncReadExt;
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Clone)]
@@ -38,6 +42,39 @@ impl AStore {
         Self {
             ch,
             global: self.global.clone(),
+        }
+    }
+
+    pub async fn source_path<P: AsRef<Path>>(self, p: P) -> anyhow::Result<String> {
+        let mut f = match tokio::fs::File::open(p).await {
+            Ok(f) => f,
+            Err(_) => return Ok(self.do_prompt().await), //No file is not an error
+        };
+        let mut buf = String::new();
+        f.read_to_string(&mut buf).await?;
+        let p = parser::Lines.parse_s(&buf).map_err(|e| e.strung())?;
+        for v in p {
+            v.run(&self).await.ok();
+        }
+
+        //do prompt
+
+        Ok(self.do_prompt().await)
+    }
+
+    pub async fn do_prompt(&self) -> String {
+        let s = self
+            .get("RU_PROMPT".to_string())
+            .await
+            .map(|s| s.to_string())
+            .unwrap_or(">>".to_string());
+        let p = match parser::QuotedString.parse_s(&s) {
+            Ok(v) => v,
+            Err(e) => return format!("__{}__>>", e),
+        };
+        match p.run(self.clone()).await {
+            Ok(s) => s.to_string(),
+            Err(e) => format!("__{}__>>", e),
         }
     }
 }

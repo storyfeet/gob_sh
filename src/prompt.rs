@@ -10,7 +10,7 @@ use termion::color;
 
 #[derive(Debug, Clone)]
 pub struct Prompt {
-    pr_line: String,
+    pub pr_line: String,
     built: String,
     restore: Option<Cursor>,
     pub options: Option<(Ranger, Vec<String>)>,

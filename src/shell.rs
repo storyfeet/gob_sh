@@ -8,31 +8,58 @@ use bogobble::traits::*;
 use crate::store::AStore;
 use crate::tab_complete::*;
 use crate::{parser, prompt::Prompt, RT};
-use std::io::Read;
 use std::io::Write;
 use std::path::Path;
 
-#[derive(Clone)]
+use tokio::sync::mpsc;
+
 pub struct Shell {
     pub prompt: Prompt,
     pub store: AStore,
     pub history: HistoryStore,
+    pub e_sender: mpsc::Sender<Event>,
 }
 
 impl Shell {
     /// Invariants : Settings must always have at least one layer in scope.
-    pub async fn new() -> Shell {
+    pub async fn new(e_sender: mpsc::Sender<Event>) -> Shell {
         let mut history = HistoryStore::new();
         history.load_history();
         Shell {
             prompt: Prompt::new(">>".to_string()),
             store: AStore::new_global().await,
             history,
+            e_sender,
+        }
+    }
+
+    pub fn try_prompt(&mut self) {
+        if let Some(v) = &mut self.waiting {
+            if let Ok(v) = v.try_recv() {
+                self.show_pline_or_err(v);
+            }
+        }
+    }
+
+    pub fn show_pline_or_err(&mut self, a: anyhow::Result<String>) {
+        match a {
+            Ok(s) => self.prompt.pr_line = s,
+            Err(e) => self.prompt.message = Some(e.to_string()),
+        }
+    }
+
+    pub async fn wait_prompt(&mut self) {
+        if let Some(f) = self.waiting.take() {
+            match f.await {
+                Ok(v) => self.show_pline_or_err(v),
+                Err(e) => self.prompt.message = Some(e.to_string()),
+            }
         }
     }
 
     pub fn do_print<T, F: Fn(&mut Self) -> T>(&mut self, rt: &mut RT, f: F) -> T {
         self.prompt.unprint(rt);
+        self.try_prompt();
         let r = f(self);
         self.prompt.print(rt);
         r
@@ -123,15 +150,10 @@ impl Shell {
         rt.flush().ok();
     }
 
-    pub async fn source_path<P: AsRef<Path>>(&mut self, p: P) -> anyhow::Result<()> {
-        let mut f = std::fs::File::open(p)?;
-        let mut buf = String::new();
-        f.read_to_string(&mut buf)?;
-        let p = parser::Lines.parse_s(&buf).map_err(|e| e.strung())?;
-        for v in p {
-            v.run(&self.store).await.ok();
-        }
-        Ok(())
+    pub async fn source_path<P: 'static + AsRef<Path> + Send>(&mut self, p: P) {
+        self.wait_prompt().await;
+        self.waiting =
+            Some(crate::future_util::to_channel(self.store.clone().source_path(p)).await);
     }
 
     pub fn do_ctrl(&mut self, k: Key, rt: &mut RT) {

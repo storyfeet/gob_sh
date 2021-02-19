@@ -41,6 +41,7 @@ pub enum Event {
     Null,
     MouseEvent(u8, u16, u16),
     CSI(Vec<u16>, u8),
+    Prompt(String),
 }
 
 pub type REvent = anyhow::Result<Event>;
