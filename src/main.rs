@@ -91,6 +91,7 @@ pub async fn run_interactive() -> anyhow::Result<()> {
     shell.reset(&mut rt).await;
 
     tokio::spawn(inputs::handle_inputs(ch_s));
+    shell.prompt.print(&mut rt);
 
     while let Some(ae) = ch_r.recv().await {
         match ae {

@@ -77,7 +77,173 @@ macro_rules! p_try {
     };
 }
 
+pub struct InByteReader {
+    buf: [u8; 6],
+    start: usize,
+    end: usize,
+}
+
+impl InByteReader {
+    pub fn new() -> Self {
+        InByteReader {
+            buf: [0; 6],
+            start: 0,
+            end: 0,
+        }
+    }
+    async fn next_byte(&mut self) -> u8 {
+        if self.end > self.start {
+            self.start += 1;
+            return self.buf[self.start - 1];
+        }
+        let mut sin = stdin();
+        sin.read(&mut self.buf[..1]).await.ok();
+        let mut bbuf = ReadBuf::new(&mut self.buf[1..5]);
+        poll_fn(|c| {
+            drop(Pin::new(&mut sin).poll_read(c, &mut bbuf));
+            Poll::Ready(())
+        })
+        .await;
+        self.end = 1 + bbuf.filled().len();
+        self.start = 1;
+        self.buf[0]
+    }
+
+    async fn try_next_byte(&mut self) -> Option<u8> {
+        if self.end > self.start {
+            self.start += 1;
+            return Some(self.buf[self.start - 1]);
+        }
+        let mut sin = stdin();
+        let mut bbuf = ReadBuf::new(&mut self.buf[..1]);
+        let ok = poll_fn(|c| match Pin::new(&mut sin).poll_read(c, &mut bbuf) {
+            Poll::Ready(_) => Poll::Ready(true),
+            Poll::Pending => Poll::Ready(false),
+        })
+        .await;
+        match ok {
+            false => None,
+            true => Some(self.buf[0]),
+        }
+    }
+}
+
+pub struct EventReader {
+    bt: InByteReader,
+}
+
+impl EventReader {
+    pub fn new() -> Self {
+        Self {
+            bt: InByteReader::new(),
+        }
+    }
+    pub async fn next_event(&mut self) -> anyhow::Result<Event> {
+        match self.bt.next_byte().await {
+            b'\x1B' => {
+                match self.bt.try_next_byte().await {
+                    None => Ok(Event::Key(Key::Esc)),
+                    Some(b'O') => match self.bt.next_byte().await {
+                        val @ b'P'..=b'S' => Ok(Event::Key(Key::F(1 + val - b'P'))),
+                        b => Err(SgError(format!("Unexpected '{}'", b)).into()),
+                    },
+                    Some(b'[') => self.parse_csi().await, // Control Sequence
+                    _ => self.parse_utf8().await.map(|c| Event::Alt(Key::Char(c))),
+                }
+            }
+            b'\n' | b'\r' => Ok(Event::Key(Key::Enter)),
+            b'\t' => Ok(Event::Key(Key::Tab)),
+            b'\x7F' => Ok(Event::Key(Key::BackSpace)),
+            c @ b'\x01'..=b'\x1A' => Ok(Event::Ctrl(Key::Char((c as u8 - b'\x01' + b'a') as char))),
+            c @ b'\x1C'..=b'\x1F' => Ok(Event::Ctrl(Key::Char((c as u8 - b'\x1C' + b'4') as char))),
+            _ => self.parse_utf8().await.map(|c| Event::Key(Key::Char(c))),
+        }
+    }
+    async fn parse_utf8(&mut self) -> anyhow::Result<char> {
+        let mut buf: [u8; 4] = [0; 4];
+        for x in 0..4 {
+            buf[x] = self.bt.next_byte().await;
+            if let Ok(s) = std::str::from_utf8(&buf[0..=x]) {
+                return Ok(s.chars().next().unwrap());
+            }
+        }
+        Err(SError("Could not make utf8 Char").into())
+    }
+
+    async fn parse_csi(&mut self) -> anyhow::Result<Event> {
+        match self.bt.next_byte().await {
+            b'[' => {
+                return match self.bt.next_byte().await {
+                    val @ b'A'..=b'E' => Ok(Event::Key(Key::F(1 + val - b'A'))),
+                    _ => Err(SError("wierd after [").into()),
+                }
+            }
+            b'D' => Ok(Event::Key(Key::Left)),
+            b'C' => Ok(Event::Key(Key::Right)),
+            b'A' => Ok(Event::Key(Key::Up)),
+            b'B' => Ok(Event::Key(Key::Down)),
+            b'H' => Ok(Event::Key(Key::Home)),
+            b'F' => Ok(Event::Key(Key::End)),
+            b'Z' => Ok(Event::Key(Key::BackTab)),
+            b'M' => {
+                let a = self.bt.next_byte().await;
+                let b = self.bt.next_byte().await;
+                let c = self.bt.next_byte().await;
+                Ok(Event::MouseEvent(a, b as u16, c as u16))
+            }
+            b'<' => {
+                let (dat, _) = self.csi_data().await?;
+
+                Ok(Event::MouseEvent(
+                    at_safe!(dat, 0) as u8,
+                    at_safe!(dat, 1),
+                    at_safe!(dat, 2),
+                ))
+            }
+            _c @ b'0'..=b'9' => self.csi_data().await.map(|(a, n)| Event::CSI(a, n)),
+            _ => Ok(Event::Null),
+        }
+    }
+
+    async fn csi_data(&mut self) -> anyhow::Result<(Vec<u16>, u8)> {
+        let mut res = Vec::new();
+
+        loop {
+            let (n, s) = self.parse_to_m_semi().await?;
+            res.push(n);
+            match s {
+                b';' => {}
+                c => return Ok((res, c)),
+            }
+        }
+    }
+
+    async fn parse_to_m_semi(&mut self) -> anyhow::Result<(u16, u8)> {
+        let mut res: u16 = 0;
+        for i in 0..6 {
+            match self.bt.next_byte().await {
+                c @ b'0'..=b'9' => res = res * 10 + ((c - b'0') as u16),
+                b' ' | b'\t' => {}
+                b';' => return Ok((res, b';')),
+                c @ 64..=126 => return Ok((res, c)),
+                _ => return Err(SError("Unexpected Char in u16").into()),
+            }
+        }
+        Err(SError("Xterm Mouse Event Error").into())
+    }
+}
+
 pub async fn handle_inputs(ch: mpsc::Sender<REvent>) -> anyhow::Result<()> {
+    let mut ir = EventReader::new();
+    loop {
+        match ir.next_event().await {
+            Ok(ev) => ch.send(Ok(ev)).await.ok(),
+            Err(e) => ch.send(Err(e)).await.ok(),
+        };
+    }
+}
+
+pub async fn handle_inputs_old(ch: mpsc::Sender<REvent>) -> anyhow::Result<()> {
     let mut b1: [u8; 1] = [0];
     let mut bbig: [u8; 20] = [0; 20];
     let mut full_buf: Vec<u8> = Vec::new();

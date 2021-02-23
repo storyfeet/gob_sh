@@ -74,6 +74,7 @@ impl Shell {
             Complete::Many(v) => self.prompt.options = Some((tabr.with_end(clen), v)),
         }
     }
+
     pub async fn on_enter(&mut self, rt: &mut RT) {
         let c_line = &self.prompt.cursor.s;
         self.history.pos = None;
