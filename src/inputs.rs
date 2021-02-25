@@ -92,25 +92,33 @@ impl InByteReader {
         }
     }
     async fn next_byte(&mut self) -> u8 {
+        println!("next_byte {},{},{:?}\r", self.start, self.end, self.buf);
         if self.end > self.start {
             self.start += 1;
+            println!("b = {}", self.buf[self.start - 1]);
             return self.buf[self.start - 1];
         }
         let mut sin = stdin();
         sin.read(&mut self.buf[..1]).await.ok();
-        let mut bbuf = ReadBuf::new(&mut self.buf[1..5]);
+        let mut bbuf = ReadBuf::new(&mut self.buf[1..3]);
         poll_fn(|c| {
-            drop(Pin::new(&mut sin).poll_read(c, &mut bbuf));
+            println!("poll_fn_start: {:?}\r", bbuf.filled());
+            match Pin::new(&mut sin).poll_read(c, &mut bbuf) {
+                Poll::Ready(_) => println!("filled buf = {:?}\r", bbuf.filled()),
+                Poll::Pending => println!("no fill buf = {:?}\r", bbuf.filled()),
+            }
             Poll::Ready(())
         })
         .await;
         self.end = 1 + bbuf.filled().len();
         self.start = 1;
+        println!("next_byte_end {},{},{:?}\r", self.start, self.end, self.buf);
         self.buf[0]
     }
 
     async fn try_next_byte(&mut self) -> Option<u8> {
-        if self.end > self.start {
+        println!("try_next_byte {},{},{:?}\r", self.start, self.end, self.buf);
+        if self.start < self.end {
             self.start += 1;
             return Some(self.buf[self.start - 1]);
         }
@@ -220,7 +228,7 @@ impl EventReader {
 
     async fn parse_to_m_semi(&mut self) -> anyhow::Result<(u16, u8)> {
         let mut res: u16 = 0;
-        for i in 0..6 {
+        for _ in 0..6 {
             match self.bt.next_byte().await {
                 c @ b'0'..=b'9' => res = res * 10 + ((c - b'0') as u16),
                 b' ' | b'\t' => {}
@@ -236,10 +244,11 @@ impl EventReader {
 pub async fn handle_inputs(ch: mpsc::Sender<REvent>) -> anyhow::Result<()> {
     let mut ir = EventReader::new();
     loop {
-        match ir.next_event().await {
+        /* match ir.next_event().await {
             Ok(ev) => ch.send(Ok(ev)).await.ok(),
             Err(e) => ch.send(Err(e)).await.ok(),
-        };
+        };*/
+        println!("EVENT:{:?}\r", ir.next_event().await)
     }
 }
 

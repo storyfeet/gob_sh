@@ -79,7 +79,7 @@ async fn shell_main<'a>(clp: &'a clap::ArgMatches<'a>) -> anyhow::Result<()> {
 }
 
 pub async fn run_interactive() -> anyhow::Result<()> {
-    ctrlc::set_handler(move || println!("Kill Signal")).ok();
+    //    ctrlc::set_handler(move || println!("Kill Signal")).ok();
     let (ch_s, mut ch_r) = mpsc::channel(10);
     let mut shell = Shell::new(ch_s.clone()).await;
     let mut rt = stdout().into_raw_mode()?;
