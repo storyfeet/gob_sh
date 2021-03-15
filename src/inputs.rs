@@ -1,7 +1,9 @@
 use err_tools::*;
 use futures::future::poll_fn;
+
+use std::fmt;
 use std::pin::Pin;
-use std::task::Poll;
+use std::task::{Context, Poll};
 use tokio::io::*;
 use tokio::sync::mpsc;
 
@@ -77,73 +79,86 @@ macro_rules! p_try {
     };
 }
 
-pub struct InByteReader {
-    buf: [u8; 6],
+pub struct InByteReader<R: AsyncRead + 'static> {
+    buf: [u8; 5],
     start: usize,
     end: usize,
+    r: R,
 }
 
-impl InByteReader {
-    pub fn new() -> Self {
+impl<R: AsyncRead + 'static> fmt::Debug for InByteReader<R> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "s:{},e:{},{:?}", self.start, self.end, self.buf)
+    }
+}
+
+impl<R: AsyncRead + 'static + Unpin> InByteReader<R> {
+    pub fn new(r: R) -> Self {
         InByteReader {
-            buf: [0; 6],
+            buf: [0; 5],
             start: 0,
             end: 0,
+            r,
         }
     }
-    async fn next_byte(&mut self) -> u8 {
-        println!("next_byte {},{},{:?}\r", self.start, self.end, self.buf);
-        if self.end > self.start {
-            self.start += 1;
-            println!("b = {}", self.buf[self.start - 1]);
-            return self.buf[self.start - 1];
+
+    fn fill(&mut self, c: &mut Context) -> Poll<anyhow::Result<()>> {
+        if self.start < self.end {
+            return Poll::Ready(Ok(()));
         }
-        let mut sin = stdin();
-        sin.read(&mut self.buf[..1]).await.ok();
-        let mut bbuf = ReadBuf::new(&mut self.buf[1..3]);
-        poll_fn(|c| {
-            println!("poll_fn_start: {:?}\r", bbuf.filled());
-            match Pin::new(&mut sin).poll_read(c, &mut bbuf) {
-                Poll::Ready(_) => println!("filled buf = {:?}\r", bbuf.filled()),
-                Poll::Pending => println!("no fill buf = {:?}\r", bbuf.filled()),
+
+        let mut bbuf = ReadBuf::new(&mut self.buf);
+        match Pin::new(&mut self.r).poll_read(c, &mut bbuf) {
+            Poll::Ready(Ok(())) => {
+                self.start = 0;
+                self.end = bbuf.filled().len();
+                return Poll::Ready(Ok(()));
             }
-            Poll::Ready(())
-        })
-        .await;
-        self.end = 1 + bbuf.filled().len();
-        self.start = 1;
-        println!("next_byte_end {},{},{:?}\r", self.start, self.end, self.buf);
-        self.buf[0]
+            Poll::Ready(Err(e)) => return Poll::Ready(Err(e.into())),
+            Poll::Pending => {}
+        }
+        let mut bbuf = ReadBuf::new(&mut self.buf[0..1]);
+        match Pin::new(&mut self.r).poll_read(c, &mut bbuf) {
+            Poll::Ready(Ok(())) => {
+                self.start = 0;
+                self.end = 1;
+                Poll::Ready(Ok(()))
+            }
+            Poll::Ready(Err(e)) => Poll::Ready(Err(e.into())),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+
+    async fn next_byte(&mut self) -> u8 {
+        poll_fn(|c| self.fill(c)).await;
+        println!("Next byte {:?}\r", self);
+        self.start += 1;
+        self.buf[self.start - 1]
     }
 
     async fn try_next_byte(&mut self) -> Option<u8> {
-        println!("try_next_byte {},{},{:?}\r", self.start, self.end, self.buf);
+        poll_fn(|c| {
+            drop(self.fill(c));
+            Poll::Ready(())
+        })
+        .await;
+        println!("try next byte {:?}\r", self);
         if self.start < self.end {
             self.start += 1;
             return Some(self.buf[self.start - 1]);
         }
-        let mut sin = stdin();
-        let mut bbuf = ReadBuf::new(&mut self.buf[..1]);
-        let ok = poll_fn(|c| match Pin::new(&mut sin).poll_read(c, &mut bbuf) {
-            Poll::Ready(_) => Poll::Ready(true),
-            Poll::Pending => Poll::Ready(false),
-        })
-        .await;
-        match ok {
-            false => None,
-            true => Some(self.buf[0]),
-        }
+        None
     }
 }
 
-pub struct EventReader {
-    bt: InByteReader,
+pub struct EventReader<T: AsyncRead + 'static> {
+    bt: InByteReader<T>,
 }
 
-impl EventReader {
-    pub fn new() -> Self {
-        Self {
-            bt: InByteReader::new(),
+impl<T: AsyncRead + 'static + Unpin> EventReader<T> {
+    pub fn new(bt: T) -> EventReader<T> {
+        EventReader {
+            bt: InByteReader::new(bt),
         }
     }
     pub async fn next_event(&mut self) -> anyhow::Result<Event> {
@@ -242,13 +257,19 @@ impl EventReader {
 }
 
 pub async fn handle_inputs(ch: mpsc::Sender<REvent>) -> anyhow::Result<()> {
-    let mut ir = EventReader::new();
+    let mut ir = EventReader::new(tokio::io::stdin());
     loop {
         /* match ir.next_event().await {
             Ok(ev) => ch.send(Ok(ev)).await.ok(),
             Err(e) => ch.send(Err(e)).await.ok(),
         };*/
-        println!("EVENT:{:?}\r", ir.next_event().await)
+        match ir.next_event().await {
+            Ok(Event::Key(Key::Char('q'))) => {
+                ch.send(Ok(Event::Ctrl(Key::Char('c'))));
+                return Ok(());
+            }
+            e => println!("EVENT:{:?}\r", ir.next_event().await),
+        }
     }
 }
 
