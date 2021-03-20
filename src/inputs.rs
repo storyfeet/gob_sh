@@ -130,10 +130,17 @@ impl<R: AsyncRead + 'static + Unpin> InByteReader<R> {
     }
 
     async fn next_byte(&mut self) -> u8 {
-        poll_fn(|c| self.fill(c)).await;
-        println!("Next byte {:?}\r", self);
+        poll_fn(|c| self.fill(c)).await.ok();
         self.start += 1;
-        self.buf[self.start - 1]
+        let b = self.buf[self.start - 1];
+        //println!("b:{} {}", b, b as char);
+        b
+    }
+
+    fn back(&mut self) {
+        if self.start > 0 {
+            self.start -= 1;
+        }
     }
 
     async fn try_next_byte(&mut self) -> Option<u8> {
@@ -142,11 +149,13 @@ impl<R: AsyncRead + 'static + Unpin> InByteReader<R> {
             Poll::Ready(())
         })
         .await;
-        println!("try next byte {:?}\r", self);
         if self.start < self.end {
             self.start += 1;
-            return Some(self.buf[self.start - 1]);
+            let b = self.buf[self.start - 1];
+            //println!("t:Some({}) {}\r", b, b as char);
+            return Some(b);
         }
+        //println!("t:None\r");
         None
     }
 }
@@ -162,6 +171,7 @@ impl<T: AsyncRead + 'static + Unpin> EventReader<T> {
         }
     }
     pub async fn next_event(&mut self) -> anyhow::Result<Event> {
+        //println!("Next event");
         match self.bt.next_byte().await {
             b'\x1B' => {
                 match self.bt.try_next_byte().await {
@@ -179,10 +189,14 @@ impl<T: AsyncRead + 'static + Unpin> EventReader<T> {
             b'\x7F' => Ok(Event::Key(Key::BackSpace)),
             c @ b'\x01'..=b'\x1A' => Ok(Event::Ctrl(Key::Char((c as u8 - b'\x01' + b'a') as char))),
             c @ b'\x1C'..=b'\x1F' => Ok(Event::Ctrl(Key::Char((c as u8 - b'\x1C' + b'4') as char))),
-            _ => self.parse_utf8().await.map(|c| Event::Key(Key::Char(c))),
+            _ => {
+                self.bt.back();
+                self.parse_utf8().await.map(|c| Event::Key(Key::Char(c)))
+            }
         }
     }
     async fn parse_utf8(&mut self) -> anyhow::Result<char> {
+        //println!("parse utf8");
         let mut buf: [u8; 4] = [0; 4];
         for x in 0..4 {
             buf[x] = self.bt.next_byte().await;
@@ -194,6 +208,7 @@ impl<T: AsyncRead + 'static + Unpin> EventReader<T> {
     }
 
     async fn parse_csi(&mut self) -> anyhow::Result<Event> {
+        //println!("parse_csi");
         match self.bt.next_byte().await {
             b'[' => {
                 return match self.bt.next_byte().await {
@@ -256,20 +271,44 @@ impl<T: AsyncRead + 'static + Unpin> EventReader<T> {
     }
 }
 
+/*Fake for testing
+pub async fn handle_inputs(ch: mpsc::Sender<REvent>) -> anyhow::Result<()> {
+    let mut br = InByteReader::new(tokio::io::stdin());
+    loop {
+        match br.next_byte().await {
+            b'q' => {
+                ch.send(Ok(Event::Key(Key::Char('d')))).await.ok();
+                return Ok(());
+            }
+            b => println!("waited = {} : {}", b, b as char),
+        }
+
+        while let Some(b) = br.try_next_byte().await {
+            match b {
+                b'q' => {
+                    ch.send(Ok(Event::Key(Key::Char('d')))).await.ok();
+                    return Ok(());
+                }
+                b => println!("try = {} : {}", b, b as char),
+            }
+        }
+    }
+}*/
+
 pub async fn handle_inputs(ch: mpsc::Sender<REvent>) -> anyhow::Result<()> {
     let mut ir = EventReader::new(tokio::io::stdin());
     loop {
-        /* match ir.next_event().await {
+        match ir.next_event().await {
             Ok(ev) => ch.send(Ok(ev)).await.ok(),
             Err(e) => ch.send(Err(e)).await.ok(),
-        };*/
-        match ir.next_event().await {
+        };
+        /*match ir.next_event().await {
             Ok(Event::Key(Key::Char('q'))) => {
-                ch.send(Ok(Event::Ctrl(Key::Char('c'))));
+                ch.send(Ok(Event::Ctrl(Key::Char('d')))).await;
                 return Ok(());
             }
-            e => println!("EVENT:{:?}\r", ir.next_event().await),
-        }
+            e => println!("EVENT:{:?}\r", e),
+        }*/
     }
 }
 
