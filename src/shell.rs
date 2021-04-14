@@ -8,6 +8,7 @@ use termion::event::Key;
 use crate::store::Store;
 use crate::tab_complete::*;
 use crate::{parser, prompt::Prompt, RT};
+use ru_history::HistoryStore;
 use std::io::Read;
 use std::io::Write;
 use std::path::Path;
@@ -24,7 +25,7 @@ impl Shell {
     /// Invariants : Settings must always have at least one layer in scope.
     pub fn new() -> Shell {
         let mut history = HistoryStore::new();
-        history.load_history();
+        load_history(2, &mut history);
         Shell {
             prompt: Prompt::new(">>".to_string()),
             store: Store::new(),
@@ -72,11 +73,11 @@ impl Shell {
     }
     pub fn on_enter(&mut self, rt: &mut RT) {
         let c_line = &self.prompt.cursor.s;
-        self.history.pos = None;
-        self.history.guesses = None;
         match parser::Lines.parse_s(c_line) {
             Ok(v) => {
-                let hist_r = self.history.push_command(c_line.clone());
+                let hist_r = self
+                    .history
+                    .add_cmd(&c_line, &ru_history::here(), ru_history::now());
                 if !self.prompt.cursor.is_end() {
                     self.prompt.unprint(rt);
                     self.prompt.print_end(rt);
@@ -95,10 +96,6 @@ impl Shell {
                 rt.activate_raw_mode().ok();
                 self.reset(rt);
                 self.prompt.unprint(rt);
-                match hist_r {
-                    Err(e) => self.prompt.message = Some(e.to_string()),
-                    Ok(_) => {} // self.prompt.message = Some(s),
-                }
                 self.prompt.print(rt);
             }
             Err(_) => self.do_print(rt, |sh| sh.prompt.add_char('\n')),
@@ -145,7 +142,6 @@ impl Shell {
             Key::Ctrl('h') => self.prompt.do_cursor(rt, Cursor::del_line),
             Key::Esc => {
                 self.prompt.esc(rt);
-                self.history.guesses = None;
             }
             Key::Up => match self.prompt.do_cursor(rt, Cursor::up) {
                 false => self.do_print(rt, |p| p.prompt.replace_line(p.history.up_recent())),

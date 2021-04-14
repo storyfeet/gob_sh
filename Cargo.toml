@@ -27,5 +27,5 @@ chrono = "0.4.19"
 clap = "2.33.3"
 
 
-ru_complete = {path="../ru_complete/"}
+ru_history = {path="../ru_history/"}
 tokio = { version = "1", features = ["full"] }
