@@ -14,7 +14,6 @@ use std::io::Write;
 use std::path::Path;
 
 #[derive(Clone, Debug)]
-
 pub struct Shell {
     pub prompt: Prompt,
     pub store: Store,
@@ -71,12 +70,12 @@ impl Shell {
             Complete::Many(v) => self.prompt.options = Some((tabr.with_end(clen), v)),
         }
     }
+
     pub fn on_enter(&mut self, rt: &mut RT) {
         let c_line = &self.prompt.cursor.s;
         match parser::Lines.parse_s(c_line) {
             Ok(v) => {
-                let hist_r = self
-                    .history
+                self.history
                     .add_cmd(&c_line, &ru_history::here(), ru_history::now());
                 if !self.prompt.cursor.is_end() {
                     self.prompt.unprint(rt);
@@ -144,31 +143,26 @@ impl Shell {
                 self.prompt.esc(rt);
             }
             Key::Up => match self.prompt.do_cursor(rt, Cursor::up) {
-                false => self.do_print(rt, |p| p.prompt.replace_line(p.history.up_recent())),
+                false => self.prompt.do_print(rt, Prompt::up),
                 _ => {}
             },
 
             Key::Down => match self.prompt.do_cursor(rt, Cursor::down) {
-                false => self.do_print(rt, |p| p.prompt.replace_line(p.history.down_recent())),
+                false => self.prompt.do_print(rt, Prompt::down),
                 _ => {}
             },
 
             Key::End => self.prompt.do_cursor(rt, Cursor::to_line_end),
             Key::Right => {
                 if !self.prompt.do_cursor(rt, Cursor::right) {
-                    match self.history.guess(&self.prompt.cursor.s) {
-                        true => {
-                            self.do_print(rt, |s| s.prompt.replace_line(s.history.select_recent(0)))
-                        }
-                        false => self.prompt.do_print(rt, |p| p.replace_line(None)),
-                    }
+                    let v = self
+                        .history
+                        .complete(&self.prompt.cursor.s, &ru_history::here(), 16);
+                    self.prompt.do_print(rt, move |p| p.set_guesses(v));
                 }
             }
             Key::Left => {
-                if !self.prompt.do_cursor(rt, Cursor::left) {
-                    self.history.guesses = None;
-                    self.prompt.do_print(rt, |p| p.replace_line(None));
-                }
+                self.prompt.do_cursor(rt, Cursor::left);
             }
             e => self
                 .prompt
@@ -181,9 +175,7 @@ impl Shell {
     pub fn do_unsupported(&mut self, b: &[u8], rt: &mut RT) -> anyhow::Result<()> {
         match b {
             //Ctrl Up:
-            [27, 91, 49, 59, 53, 65] => {
-                self.do_print(rt, |p| p.prompt.replace_line(p.history.up_recent()))
-            }
+            [27, 91, 49, 59, 53, 65] => self.prompt.do_print(rt, Prompt::up),
             //Ctrl End
             [27, 91, 49, 59, 53, 70] => self.prompt.do_cursor(rt, Cursor::to_end),
             c => self.prompt.do_print(rt, |p| {

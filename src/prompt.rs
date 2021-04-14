@@ -1,5 +1,6 @@
 //Manages carring all the messages to the user
 use crate::cursor::Cursor;
+use crate::guess_manager::*;
 use crate::ui;
 use crate::RT;
 use bogobble::{partial::ranger::Ranger, traits::*};
@@ -16,6 +17,7 @@ pub struct Prompt {
     pub options: Option<(Ranger, Vec<String>)>,
     pub message: Option<String>,
     pub cursor: Cursor,
+    guess_man: GuessManager,
 }
 
 impl Prompt {
@@ -27,6 +29,7 @@ impl Prompt {
             restore: None,
             built: String::new(),
             cursor: Cursor::at_end(String::new()),
+            guess_man: GuessManager::new(Some(20)),
         }
     }
 
@@ -34,9 +37,45 @@ impl Prompt {
         self.unprint(rt);
         self.clear_help();
         self.restore = None;
+        self.guess_man.clear();
         self.print(rt);
     }
 
+    pub fn set_guesses(&mut self, v: Vec<String>) {
+        self.guess_man.set_guesses(v);
+        self.up();
+    }
+
+    pub fn up(&mut self) {
+        match self.guess_man.next() {
+            Some(s) => self.replace_cursor(s),
+            None => {}
+        }
+    }
+
+    pub fn down(&mut self) {
+        match self.guess_man.prev() {
+            Some(s) => self.replace_cursor(s),
+            None => self.do_restore(),
+        }
+    }
+
+    pub fn do_restore(&mut self) {
+        match self.restore.take() {
+            Some(mut d) => std::mem::swap(&mut d, &mut self.cursor),
+            None => {}
+        }
+    }
+
+    pub fn replace_cursor(&mut self, s: String) {
+        let mut new_cursor = Cursor::at_end(s);
+        std::mem::swap(&mut self.cursor, &mut new_cursor);
+        if let None = &self.restore {
+            self.restore = Some(new_cursor);
+        }
+    }
+
+    /*
     pub fn replace_line(&mut self, line: Option<&String>) {
         self.clear_help();
         let new_cursor = line.map(|l| Cursor::at_end(l.clone()));
@@ -53,6 +92,7 @@ impl Prompt {
             _ => {} //self.line = "".to_string(),
         }
     }
+    */
 
     pub fn clear_help(&mut self) {
         self.options = None;
@@ -150,7 +190,7 @@ impl Prompt {
         self.cursor.del_char();
     }
 
-    pub fn do_print<F: Fn(&mut Prompt) -> T, T>(&mut self, rt: &mut RT, f: F) -> T {
+    pub fn do_print<F: FnOnce(&mut Prompt) -> T, T>(&mut self, rt: &mut RT, f: F) -> T {
         self.unprint(rt);
         let r = f(self);
         self.print(rt);

@@ -3,6 +3,7 @@ mod channel;
 mod cursor;
 mod exec;
 mod expr;
+mod guess_manager;
 mod parser;
 mod partial;
 mod prompt;
@@ -45,25 +46,13 @@ pub fn main() -> anyhow::Result<()> {
         .about("A shell with multiline editing and curly syntax")
         .version(crate_version!())
         .author("Matthew Stoodley")
-        .subcommand(
-            SubCommand::with_name("server").about("The server that manages the command history"),
-        )
         .arg(
             (Arg::with_name("fname").index(1).required(false))
                 .help("run on a file without going interactive"),
         )
         .get_matches();
 
-    if let Some(_sub) = clp.subcommand_matches("server") {
-        return server_main();
-    }
     shell_main(&clp)
-}
-
-fn server_main() -> anyhow::Result<()> {
-    let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(ru_complete::main());
-    Ok(())
 }
 
 fn shell_main(clp: &clap::ArgMatches) -> anyhow::Result<()> {
