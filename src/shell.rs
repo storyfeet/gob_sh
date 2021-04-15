@@ -24,9 +24,12 @@ impl Shell {
     /// Invariants : Settings must always have at least one layer in scope.
     pub fn new() -> Shell {
         let mut history = HistoryStore::new();
-        load_history(2, &mut history);
+        let mut prompt = Prompt::new(">>".to_string());
+        if let Err(e) = load_history(2, &mut history) {
+            prompt.message = Some(e.to_string());
+        }
         Shell {
-            prompt: Prompt::new(">>".to_string()),
+            prompt,
             store: Store::new(),
             history,
         }
@@ -75,8 +78,11 @@ impl Shell {
         let c_line = &self.prompt.cursor.s;
         match parser::Lines.parse_s(c_line) {
             Ok(v) => {
-                self.history
-                    .add_cmd(&c_line, &ru_history::here(), ru_history::now());
+                if v.len() > 0 {
+                    self.prompt.guess_man.add_recent(c_line.clone());
+                    self.history
+                        .add_cmd(&c_line, &ru_history::here(), ru_history::now());
+                }
                 if !self.prompt.cursor.is_end() {
                     self.prompt.unprint(rt);
                     self.prompt.print_end(rt);
@@ -146,12 +152,10 @@ impl Shell {
                 false => self.prompt.do_print(rt, Prompt::up),
                 _ => {}
             },
-
             Key::Down => match self.prompt.do_cursor(rt, Cursor::down) {
                 false => self.prompt.do_print(rt, Prompt::down),
                 _ => {}
             },
-
             Key::End => self.prompt.do_cursor(rt, Cursor::to_line_end),
             Key::Right => {
                 if !self.prompt.do_cursor(rt, Cursor::right) {

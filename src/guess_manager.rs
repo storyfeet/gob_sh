@@ -18,6 +18,7 @@ impl GuessManager {
 
     pub fn set_guesses(&mut self, v: Vec<String>) {
         self.guesses = v;
+        self.p = None;
     }
 
     pub fn next(&mut self) -> Option<String> {
@@ -74,11 +75,10 @@ impl GuessManager {
             }
             None => {
                 self.recent.push(s);
-                if (&self.max_recent)
-                    .map(|v| self.recent.len() > v)
-                    .unwrap_or(false)
-                {
-                    self.recent.remove(0);
+                if let Some(n) = self.max_recent {
+                    if self.recent.len() > n {
+                        self.recent.remove(0);
+                    }
                 }
             }
         }

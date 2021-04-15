@@ -17,7 +17,7 @@ pub struct Prompt {
     pub options: Option<(Ranger, Vec<String>)>,
     pub message: Option<String>,
     pub cursor: Cursor,
-    guess_man: GuessManager,
+    pub guess_man: GuessManager,
 }
 
 impl Prompt {
@@ -31,6 +31,17 @@ impl Prompt {
             cursor: Cursor::at_end(String::new()),
             guess_man: GuessManager::new(Some(20)),
         }
+    }
+
+    pub fn reset(&mut self, pr_line: String, rt: &mut RT) {
+        self.pr_line = pr_line;
+        self.options = None;
+        self.message = None;
+        self.restore = None;
+        self.built = String::new();
+        self.cursor = Cursor::at_end(String::new());
+        self.guess_man.clear();
+        self.print(rt);
     }
 
     pub fn esc(&mut self, rt: &mut RT) {
@@ -97,11 +108,6 @@ impl Prompt {
     pub fn clear_help(&mut self) {
         self.options = None;
         self.message = None;
-    }
-
-    pub fn reset(&mut self, pr_line: String, rt: &mut RT) {
-        *self = Self::new(pr_line);
-        self.print(rt);
     }
 
     pub fn print(&mut self, rt: &mut RT) {
