@@ -137,7 +137,12 @@ impl Shell {
 
     pub fn do_key(&mut self, k: Key, rt: &mut RT) -> anyhow::Result<Action> {
         match k {
-            Key::Ctrl('d') => return Ok(Action::Quit),
+            Key::Ctrl('d') => {
+                if let Err(_) = save_history(&mut self.history) {
+                    println!("Could not save history\n\r");
+                }
+                return Ok(Action::Quit);
+            }
             Key::Char('\n') => self.on_enter(rt),
             Key::Char('\t') => self.do_print(rt, Shell::tab_complete),
             Key::Char(c) => self.prompt.do_print(rt, |p| p.add_char(c)),

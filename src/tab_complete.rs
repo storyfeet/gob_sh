@@ -69,12 +69,6 @@ pub fn tab_complete_path(src: &str) -> Complete {
     }
 }
 
-fn date_to_history_path(t: SystemTime) -> PathBuf {
-    let res = history_path();
-    let (y, m) = year_month(t);
-    on_year_month(&res, y, m)
-}
-
 fn history_path() -> PathBuf {
     let mut tdir = PathBuf::from(std::env::var("HOME").unwrap_or(String::new()));
     tdir.push(".config/rushell/history");
@@ -110,5 +104,19 @@ pub fn load_history(months: u32, hist: &mut HistoryStore) -> anyhow::Result<()> 
             },
         }
     }
+    Ok(())
+}
+
+pub fn save_history(hs: &mut HistoryStore) -> anyhow::Result<()> {
+    let (y, m) = year_month(SystemTime::now());
+    let hpath = history_path();
+    std::fs::create_dir_all(hpath).ok();
+    let path = on_year_month(&history_path(), y, m);
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .write(true)
+        .open(path)?;
+    hs.write_to(&mut f, false)?;
     Ok(())
 }
