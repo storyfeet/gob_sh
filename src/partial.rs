@@ -1,9 +1,26 @@
 use bogobble::partial::*;
 use bogobble::*;
-use std::fmt::{self, Display};
+use std::fmt::{self, Display, Write};
 use termion::color;
+use transliterate::parser::*;
 
 type PT = PosTree<Item>;
+
+struct PConfig {}
+
+impl PConfig {
+    fn item_str(&self, i: Item, s: &mut String) {
+        //TODO Enable use of RU_HIGHLIGHT
+        write!(s, "{}", i).ok();
+    }
+}
+
+impl SSParser<PConfig> for Item {
+    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, c: &PConfig) -> ParseRes<'a, ()> {
+        c.item_str(*self, res);
+        Ok((it.clone(), (), None))
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Item {
@@ -42,21 +59,22 @@ impl Display for Item {
     }
 }
 
-pub struct KW {
-    s: &'static str,
+pub struct ItemWrap<P: SSParser<PConfig>> {
+    p: P,
+    item: Item,
 }
 
-impl<'a> Parser<'a> for KW {
-    type Out = PT;
-    fn parse(&self, it: &PIter<'a>) -> ParseRes<'a, Self::Out> {
-        (tpos(keyword(S(self.s)), Item::Keyword), WS.star())
-            .first()
-            .parse(it)
+impl<P: SSParser<PConfig>> SSParser<PConfig> for ItemWrap<P> {
+    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &PConfig) -> ParseRes<'a, ()> {
+        (self.item, self.p, Item::End, (WS.star())).ss_parse(it, res, cf)
     }
 }
 
-fn kw<'a>(s: &'static str) -> KW {
-    KW { s }
+fn kw<P: SSParser<CF>, CF>(p: P) -> ItemWrap<KeyWord<P>> {
+    ItemWrap {
+        p,
+        item: Item::Keyword,
+    }
 }
 
 fn sym<'a, P: Parser<'a>>(p: P) -> PosTreeParse<P, Item> {
@@ -132,7 +150,7 @@ parser! {(PConnection->PT)
 }
 
 parser! {(Path->PT)
-    tpos((maybe("~"),p_plus(or_ig!("\\ ",("/._",Alpha,NumDigit).iplus()))),Item::Path)
+    tpos((maybe("~"),p_plus(or_ig!("\\ ",("/._-",Alpha,NumDigit).iplus()))),Item::Path)
 }
 parser! {(PExec->PT)
     tpos(Path,Item::Command).merge(Item::Command,ArgsS).opush(maybe(ws_(PConnection)))

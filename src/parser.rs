@@ -6,7 +6,7 @@ use crate::statement::Statement as Stt;
 use bogobble::*;
 
 parser! {(Path->String)
-    string((maybe("~"),plus(or_ig!("\\ ",("/._",Alpha,NumDigit).iplus()))))
+    string((maybe("~"),plus(or_ig!("\\ ",("/._-",Alpha,NumDigit).iplus()))))
 }
 
 parser! {(End->())
