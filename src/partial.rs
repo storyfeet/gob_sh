@@ -67,6 +67,7 @@ pub struct ItemWrap<P: SSParser<PConfig>> {
 }
 
 impl<P: SSParser<PConfig>> SSParser<PConfig> for ItemWrap<P> {
+    //TODO allow partials
     fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &PConfig) -> ParseRes<'a, ()> {
         (self.item, self.p, ss(WS.star())).ss_parse(it, res, cf)
     }
@@ -121,6 +122,9 @@ ss_parser! { Statement,
     ss_or!(
         (kw("let"), Idents,sym(ws_("=")),ArgsS),
         (kw("export"), Idents,sym(ws_("=")),ArgsS),
+        (kw("cd"),ws_(ArgS)),
+        (kw("for"),ws_(ArgS),plus_until(Id,(kw("in")),ArgsP,Block),
+        (kw("if"),ws_(ExprRight),Block,maybe(wn_(kw("else")),Block)),
     )
 }
 
@@ -147,12 +151,13 @@ ss_parser! {ExprLeft ,
     //p_list!((Item::Expr) PExec,ws_(pmaybe(p_list!((Item::Command) ExChannel,sym(">"),pmaybe(sym(">"),Item::Symbol),ws_(ArgP)),Item::Command)))
 }
 
-parser! {(ExprRight -> PT)
-    p_list!(
+ss_parser! {ExprRight,
+    (ExprLeft,maybe((ws_(sym(ss_or!("&&","||"))),wn_(ExprRight))))
+    /*p_list!(
         (Item::Expr)
         ExprLeft,
         pmaybe(ws_(sym(or("&&","||"))).merge(Item::Expr,wn_(ExprRight)),Item::Expr),
-    )
+    )*/
 }
 
 parser! {(ExTarget->PT)
