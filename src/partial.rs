@@ -2,6 +2,8 @@ use bogobble::partial::*;
 use bogobble::*;
 use std::fmt::{self, Display, Write};
 use termion::color;
+#[macro_use]
+use transliterate::*;
 use transliterate::parser::*;
 
 type PT = PosTree<Item>;
@@ -66,19 +68,22 @@ pub struct ItemWrap<P: SSParser<PConfig>> {
 
 impl<P: SSParser<PConfig>> SSParser<PConfig> for ItemWrap<P> {
     fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &PConfig) -> ParseRes<'a, ()> {
-        (self.item, self.p, Item::End, (WS.star())).ss_parse(it, res, cf)
+        (self.item, self.p, ss(WS.star())).ss_parse(it, res, cf)
     }
 }
 
-fn kw<P: SSParser<CF>, CF>(p: P) -> ItemWrap<KeyWord<P>> {
+fn kw<P: SSParser<PConfig>>(p: P) -> ItemWrap<KeyWord<P>> {
     ItemWrap {
-        p,
+        p: KeyWord(p),
         item: Item::Keyword,
     }
 }
 
-fn sym<'a, P: Parser<'a>>(p: P) -> PosTreeParse<P, Item> {
-    tpos(p, Item::Symbol)
+fn sym<P: SSParser<PConfig>>(p: P) -> ItemWrap<KeyWord<P>> {
+    ItemWrap {
+        p: KeyWord(p),
+        item: Item::Symbol,
+    }
 }
 
 parser! {(End->PT)
@@ -92,8 +97,8 @@ parser! {(Empties->PT)
         ))),Item::Comment)
 }
 
-parser! {(ExChannel -> PT)
-    sym(or!( "^^", "^", ""))
+ss_parser! {ExChannel,
+    sym(ss_or!( "^^", "^", ""))
 }
 
 parser! {(Lines->PT)
@@ -112,7 +117,14 @@ parser! {(Idents->PT)
     tpos(p_plus(ws__(common::Ident)),Item::Ident)
 }
 
-parser! {(Statement->PT)
+ss_parser! { Statement,
+    ss_or!(
+        (kw("let"), Idents,sym(ws_("=")),ArgsS),
+        (kw("export"), Idents,sym(ws_("=")),ArgsS),
+    )
+}
+
+/*parser! {(Statement->PT)
     or!(
         p_list!((Item::Statement) kw("let"),Idents,sym(ws_("=")),ArgsS),
         p_list!((Item::Statement) kw("export"),Idents,sym(ws_("=")),ArgsS),
@@ -123,14 +135,16 @@ parser! {(Statement->PT)
         p_list!((Item::Statement) sym(". "),ws_(Path)),
         ExprRight,
     )
+}*/
+
+ss_parser! {Block,
+    (wn_(sym("{")),vpos(p_plus(wn_(FullStatement)),wn_(sym("}"))))
+    //p_list!((Item::Statement) wn_(sym("{")),vpos(p_plus(wn_(FullStatement)),Item::Statement),wn_(sym("}"))),
 }
 
-parser! {(Block -> PT)
-    p_list!((Item::Statement) wn_(sym("{")),vpos(p_plus(wn_(FullStatement)),Item::Statement),wn_(sym("}"))),
-}
-
-parser! {(ExprLeft ->PT)
-    p_list!((Item::Expr) PExec,ws_(pmaybe(p_list!((Item::Command) ExChannel,sym(">"),pmaybe(sym(">"),Item::Symbol),ws_(ArgP)),Item::Command)))
+ss_parser! {ExprLeft ,
+    (PExec,ws_(pmaybe(ExChannel,sym((">",maybe(">")))),ws_(ArgP)))
+    //p_list!((Item::Expr) PExec,ws_(pmaybe(p_list!((Item::Command) ExChannel,sym(">"),pmaybe(sym(">"),Item::Symbol),ws_(ArgP)),Item::Command)))
 }
 
 parser! {(ExprRight -> PT)
