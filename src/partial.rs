@@ -123,8 +123,8 @@ ss_parser! { Statement,
         (kw("let"), Idents,sym(ws_("=")),ArgsS),
         (kw("export"), Idents,sym(ws_("=")),ArgsS),
         (kw("cd"),ws_(ArgS)),
-        (kw("for"),ws_(ArgS),plus_until(Id,(kw("in")),ArgsP,Block),
-        (kw("if"),ws_(ExprRight),Block,maybe(wn_(kw("else")),Block)),
+        (kw("for"),ws_(ArgS),plus_until(Id,(kw("in")),ArgsP,Block)),
+        (kw("if"),ws_(ExprRight),Block,Maybe(WN_(kw("else")),Block)),
     )
 }
 
@@ -134,7 +134,7 @@ ss_parser! { Statement,
         p_list!((Item::Statement) kw("export"),Idents,sym(ws_("=")),ArgsS),
         p_list!((Item::Statement) kw("cd"),ws_(ArgP)),
         p_list!((Item::Statement) kw("for"),vpos(plus_until(Id,or(kw("in"),sym(EOI))).map(|(mut v,e)|{v.push(e);v}),Item::Ident),ArgsP,Block),
-        p_list!((Item::Statement) kw("if"),ws_(ExprRight),Block,pmaybe(p_list!((Item::Statement) wn_(kw("else")),Block),Item::Statement)),
+        p_list!((Item::Statement) kw("if"),ws_(ExprRight),Block,Maybe(p_list!((Item::Statement) WN_(kw("else")),Block),Item::Statement)),
         p_list!((Item::Statement) kw("disown"),PExec),
         p_list!((Item::Statement) sym(". "),ws_(Path)),
         ExprRight,
@@ -142,107 +142,114 @@ ss_parser! { Statement,
 }*/
 
 ss_parser! {Block,
-    (wn_(sym("{")),vpos(p_plus(wn_(FullStatement)),wn_(sym("}"))))
-    //p_list!((Item::Statement) wn_(sym("{")),vpos(p_plus(wn_(FullStatement)),Item::Statement),wn_(sym("}"))),
+    (WN_(sym("{")),vpos(p_plus(WN_(FullStatement)),WN_(sym("}"))))
+    //p_list!((Item::Statement) WN_(sym("{")),vpos(p_plus(WN_(FullStatement)),Item::Statement),WN_(sym("}"))),
 }
 
 ss_parser! {ExprLeft ,
-    (PExec,ws_(pmaybe(ExChannel,sym((">",maybe(">")))),ws_(ArgP)))
-    //p_list!((Item::Expr) PExec,ws_(pmaybe(p_list!((Item::Command) ExChannel,sym(">"),pmaybe(sym(">"),Item::Symbol),ws_(ArgP)),Item::Command)))
+    (PExec,ws_(Maybe(sym((">",Maybe(">"))))),ws_(ArgP))
+    //p_list!((Item::Expr) PExec,ws_(pMaybe(p_list!((Item::Command) ExChannel,sym(">"),Maybe(sym(">"),Item::Symbol),ws_(ArgP)),Item::Command)))
 }
 
 ss_parser! {ExprRight,
-    (ExprLeft,maybe((ws_(sym(ss_or!("&&","||"))),wn_(ExprRight))))
+    (ExprLeft,Maybe((ws_(sym(ss_or!("&&","||"))),WN_(ExprRight))))
     /*p_list!(
         (Item::Expr)
         ExprLeft,
-        pmaybe(ws_(sym(or("&&","||"))).merge(Item::Expr,wn_(ExprRight)),Item::Expr),
+        Maybe(ws_(sym(or("&&","||"))).merge(Item::Expr,WN_(ExprRight)),Item::Expr),
     )*/
 }
 
-parser! {(ExTarget->PT)
-     p_list!((Item::Exec) sym("|"),ws_(PExec))
+ss_parser! {ExTarget,
+    (sym("|"),WS_(PExec))
+     //p_list!((Item::Exec) sym("|"),ws_(PExec))
 }
 
-parser! {(PConnection->PT)
-    p_list!((Item::Exec) ExChannel,ExTarget)
+ss_parser! {PConnection,
+    (ExChannel,ExTarget)
 }
 
-parser! {(Path->PT)
-    tpos((maybe("~"),p_plus(or_ig!("\\ ",("/._-",Alpha,NumDigit).iplus()))),Item::Path)
-}
-parser! {(PExec->PT)
-    tpos(Path,Item::Command).merge(Item::Command,ArgsS).opush(maybe(ws_(PConnection)))
+ss_parser! {Path,
+    ((Maybe("~"),PPlus(or_ig!("\\ ",("/._-",Alpha,NumDigit).iplus()))))
 }
 
-parser! {(ArgsS -> PT)
-    vpos(p_star(ws_(ArgP)),Item::Args)
-}
-parser! {(ArgsP -> PT)
-    vpos(p_plus(ws_(ArgP)),Item::Args)
+ss_parser! {PExec,
+    (Path,ArgsS,Maybe(WS_(PConnection)))
+    //tpos(Path,Item::Command).merge(Item::Command,ArgsS).opush(Maybe(ws_(PConnection)))
 }
 
-parser! { (QuotedLitString->PT)
-    vpos(p_plus(or!(
-            tpos(not("${}()[]\\\"").iplus(),Item::Lit),
-            tpos(("\\",or_ig!(Any.one(),EOI)),Item::Esc),
-    )),Item::Quoted)
+ss_parser! {ArgsS ,
+    PStar(WS_(ArgP))
+}
+ss_parser! {ArgsP ,
+    PPlus(WS_(ArgP))
 }
 
-parser! { (LitString->PT)
-    vpos(p_plus(or!(
-            tpos(not("#&$|^{}()[]\\\" \n\t<>;").plus(),Item::String),
-            tpos(("\\",or_ig!(Any.one(),EOI)),Item::Esc),
-    )),Item::String)
+ss_parser! { QuotedLitString,
+    PPlus(ss_or!(
+            ss(not("${}()[]\\\"").iplus()),
+            ("\\",ss_or!(Any.one(),EOI)),
+    ))
 }
 
-parser! {(StringPart->PT)
-    or!(
-        p_list!((Item::Command) sym("$["),ws__(PExec),sym("]")),
-        p_list!((Item::Command) sym("$("),ws__(PExec),sym(")")),
-        p_list!((Item::Var) sym("${"),ws__(tpos((Alpha,NumDigit,"_").plus(),Item::Var)),sym("}")),
-        p_list!((Item::Var) sym("$"),tpos((Alpha,NumDigit,"_").plus(),Item::Var)),
+ss_parser! { LitString,
+   PPlus(ss_or!(
+            ss(not("#&$|^{}()[]\\\" \n\t<>;").plus()),
+            ("\\",ss_or!(ss(Any.one()),EOI)),
+    ))
+}
+
+ss_parser! {StringPart,
+    ss_or!(
+        (Put(Item::Command), sym("$["),WS__(PExec),sym("]")),
+        (Put(Item::Command), sym("$("),WS__(PExec),sym(")")),
+        (Put(Item::Var), sym("${"),WS__(ss((Alpha,NumDigit,"_").plus())),sym("}")),
+        (Put(Item::Var), sym("$"),tpos((Alpha,NumDigit,"_").plus(),Item::Var)),
         LitString,
     )
 }
 
-parser! {(QuotedStringPart->PT)
-    or!(
-        p_list!((Item::Command) sym("$["),ws__(PExec),sym("]")),
-        p_list!((Item::Command) sym("$("),ws__(PExec),sym(")")),
-        p_list!((Item::Var) sym("${"),ws__(tpos((Alpha,NumDigit,"_").plus(),Item::Var)),sym("}")),
-        p_list!((Item::Var) sym("$"),tpos((Alpha,NumDigit,"_").plus(),Item::Var)),
+ss_parser! {QuotedStringPart,
+    ss_or!(
+        (Put(Item::Command) ,sym("$["),WS__(PExec),sym("]")),
+        (Put(Item::Command), sym("$("),WS__(PExec),sym(")")),
+        (Put(Item::Var), sym("${"),WS__(ss((Alpha,NumDigit,"_").plus())),sym("}")),
+        (Put(Item::Var),sym("$"),ss((Alpha,NumDigit,"_").plus())),
         QuotedLitString,
     )
 }
 
-parser! { (ArgP->PT)
-    or!(
-        p_r_hash,
-        vpos(p_plus(StringPart),Item::Arg),
-        p_list!((Item::String)sym("\""),vpos(p_star(QuotedStringPart),Item::String),sym("\""))
+ss_parser! { ArgP,
+    ss_or!(
+        ss(p_r_hash),
+        PPlus(StringPart),
+        (Put(Item::String),sym("\""),Put(Item::Quoted),PStar(QuotedStringPart),sym("\""))
     )
 }
 
 /// partial Raw strings eg: r###" Any \ "##  wierd \ string "###
-pub fn p_r_hash<'a>(it: &PIter<'a>) -> ParseRes<'a, PT> {
-    let (it2, pt, e) = p_list!((Item::String) sym("r"), sym("#".star()), sym("\"")).parse(it)?;
-    let hlen = match (pt.children.get(1), pt.children.get(2)) {
-        (Some(ch), Some(_)) => ch.str_len(it.orig_str()),
-        (Some(ch), None) if ch.on_str(it.orig_str()) == "\"" => 0,
-        (Some(_), None) => {
-            return EOI
-                .parse(&it2)
-                .map_v(|_| pt.clone())
-                .map_err(|e2| e.unwrap_or(e2))
-        }
-        _ => return Err(it.err_s("Quotes")),
-    };
+pub struct PRHash;
 
-    Any.p_until(
-        or!(sym(("\"", "#".exact(hlen))), tpos(EOI, Item::String)),
-        Item::String,
-    )
-    .parse(&it2)
-    .map_v(move |(q, h)| pt.clone().push(q).push(h))
+impl SSParser<PConfig> for PRHash {
+    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, c: &PConfig) -> SSRes<'a> {
+        let (it2, e) = (sym("r"), sym("#".star()), sym("\"")).parse(it)?;
+        let hlen = match (pt.children.get(1), pt.children.get(2)) {
+            (Some(ch), Some(_)) => ch.str_len(it.orig_str()),
+            (Some(ch), None) if ch.on_str(it.orig_str()) == "\"" => 0,
+            (Some(_), None) => {
+                return EOI
+                    .parse(&it2)
+                    .map_v(|_| pt.clone())
+                    .map_err(|e2| e.unwrap_or(e2))
+            }
+            _ => return Err(it.err_s("Quotes")),
+        };
+
+        Any.p_until(
+            or!(sym(("\"", "#".exact(hlen))), tpos(EOI, Item::String)),
+            Item::String,
+        )
+        .parse(&it2)
+        .map_v(move |(q, h)| pt.clone().push(q).push(h))
+    }
 }
