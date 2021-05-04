@@ -11,16 +11,16 @@ type PT = PosTree<Item>;
 struct PConfig {}
 
 impl PConfig {
-    fn item_str(&self, i: Item, s: &mut String) {
+    fn put_item(&self, i: Item, s: &mut String) {
         //TODO Enable use of RU_HIGHLIGHT
         write!(s, "{}", i).ok();
     }
 }
 
 impl SSParser<PConfig> for Item {
-    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, c: &PConfig) -> ParseRes<'a, ()> {
-        c.item_str(*self, res);
-        Ok((it.clone(), (), None))
+    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, c: &PConfig) -> SSRes<'a> {
+        c.put_item(*self, res);
+        Ok((it.clone(), None))
     }
 }
 
@@ -68,8 +68,8 @@ pub struct ItemWrap<P: SSParser<PConfig>> {
 
 impl<P: SSParser<PConfig>> SSParser<PConfig> for ItemWrap<P> {
     //TODO allow partials
-    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &PConfig) -> ParseRes<'a, ()> {
-        (self.item, self.p, ss(WS.star())).ss_parse(it, res, cf)
+    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &PConfig) -> SSRes<'a> {
+        (self.item, BRP(&self.p), WS.istar()).ss_parse(it, res, cf)
     }
 }
 
@@ -87,31 +87,31 @@ fn sym<P: SSParser<PConfig>>(p: P) -> ItemWrap<KeyWord<P>> {
     }
 }
 
-parser! {(End->PT)
-    tpos( ws_(or_ig!("\n;".one(),EOI)),Item::End)
+ss_parser! {End,
+    WS_(ss_or!("\n;".one(),EOI))
 }
 
-parser! {(Empties->PT)
-    tpos(star(ws_(or_ig!(
-            "\n;".plus(),
-            ("#",not("\n;").star()),
-        ))),Item::Comment)
+ss_parser! {Empties,
+    Star(WS_(ss_or!(
+            "\n;".iplus(),
+            ("#",not("\n;").istar()),
+        )))
 }
 
 ss_parser! {ExChannel,
     sym(ss_or!( "^^", "^", ""))
 }
 
-parser! {(Lines->PT)
-    p_list!((Item::Statement)Empties, vpos(first(p_star(ws_(FullStatement)),EOI),Item::Statement))
+ss_parser! {Lines,
+    (Empties, PStar(WS_(FullStatement)),EOI),
 }
 
-parser! {(FullStatement->PT)
-    p_list!((Item::Statement) Statement,tpos(p_plus(End),Item::End),Empties)
+ss_parser! {FullStatement,
+    (Statement,PPlus(End),Empties)
 }
 
-parser! {(Id->PT)
-    ws__(tpos(common::Ident,Item::Ident))
+ss_parser! {Id,
+    WS__(common::Ident)
 }
 
 parser! {(Idents->PT)
@@ -122,9 +122,11 @@ ss_parser! { Statement,
     ss_or!(
         (kw("let"), Idents,sym(ws_("=")),ArgsS),
         (kw("export"), Idents,sym(ws_("=")),ArgsS),
-        (kw("cd"),ws_(ArgS)),
-        (kw("for"),ws_(ArgS),plus_until(Id,(kw("in")),ArgsP,Block)),
-        (kw("if"),ws_(ExprRight),Block,Maybe(WN_(kw("else")),Block)),
+        (kw("cd"),ws_(ArgsS)),
+        (kw("for"),ws_(ArgsS),plus_until(Id,kw("in")),ArgsP,Block),
+        (kw("if"),ws_(ExprRight),Block,Maybe((WN_(kw("else")),Block))),
+        (kw("disown"),PExec),
+        (sym(". "),ws_(Path)),
     )
 }
 
@@ -170,7 +172,7 @@ ss_parser! {PConnection,
 }
 
 ss_parser! {Path,
-    ((Maybe("~"),PPlus(or_ig!("\\ ",("/._-",Alpha,NumDigit).iplus()))))
+    ((Maybe("~"),PPlus(ss_or!("\\ ",ss(("/._-",Alpha,NumDigit).iplus())))))
 }
 
 ss_parser! {PExec,
@@ -221,7 +223,7 @@ ss_parser! {QuotedStringPart,
 
 ss_parser! { ArgP,
     ss_or!(
-        ss(p_r_hash),
+        PRHash,
         PPlus(StringPart),
         (Put(Item::String),sym("\""),Put(Item::Quoted),PStar(QuotedStringPart),sym("\""))
     )
@@ -231,25 +233,58 @@ ss_parser! { ArgP,
 pub struct PRHash;
 
 impl SSParser<PConfig> for PRHash {
-    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, c: &PConfig) -> SSRes<'a> {
-        let (it2, e) = (sym("r"), sym("#".star()), sym("\"")).parse(it)?;
-        let hlen = match (pt.children.get(1), pt.children.get(2)) {
-            (Some(ch), Some(_)) => ch.str_len(it.orig_str()),
-            (Some(ch), None) if ch.on_str(it.orig_str()) == "\"" => 0,
-            (Some(_), None) => {
-                return EOI
-                    .parse(&it2)
-                    .map_v(|_| pt.clone())
-                    .map_err(|e2| e.unwrap_or(e2))
+    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &PConfig) -> SSRes<'a> {
+        let i2 = it.clone();
+        match i2.next() {
+            Some('r') => {}
+            None => {
+                cf.put_item(Item::Symbol, res);
+                res.push_str(it.str_to(None));
+                return Ok((i2, None));
             }
-            _ => return Err(it.err_s("Quotes")),
-        };
+            _ => return it.err_r(Expected::Str("RawString")),
+        }
 
-        Any.p_until(
-            or!(sym(("\"", "#".exact(hlen))), tpos(EOI, Item::String)),
-            Item::String,
-        )
-        .parse(&it2)
-        .map_v(move |(q, h)| pt.clone().push(q).push(h))
+        //count hashes
+        let nhashes = 0;
+        loop {
+            match i2.next() {
+                Some('#') => nhashes += 1,
+                Some('"') => {
+                    cf.put_item(Item::Symbol, res);
+                    res.push_str(it.str_to(i2.index()));
+                    break;
+                }
+            }
+        }
+        cf.put_item(Item::Quoted, res);
+        let raw_start = i2.clone();
+        let mut raw_fin = i2.clone();
+        loop {
+            match i2.next() {
+                Some('"') => {
+                    let i3 = it.clone();
+                    for i in 0..nhashes {
+                        match i3.next() {
+                            Some('#') => {}
+                            _ => {
+                                raw_fin = i2.clone();
+                                continue;
+                            }
+                        }
+                    }
+                    res.push_str(raw_start.str_to(raw_fin.index()));
+                    cf.put_item(Item::Symbol, res);
+                    res.push_str(raw_fin.str_to(i3.index()));
+                    return Ok((i3, None));
+                }
+                Some(_) => raw_fin = i2.clone(),
+
+                None => {
+                    res.push_str(raw_start.str_to(None));
+                    return Ok((i2, None));
+                }
+            }
+        }
     }
 }
