@@ -214,7 +214,8 @@ impl Prompt {
 
 pub fn build_line<'a>(l: &str) -> String {
     use crate::partial::*;
-    match Lines.ss_convert(l, &PConfig {}) {
+    l.to_string()
+    /*TODO FIX match Lines.ss_convert(l, &PConfig {}) {
         Ok(s) => {
             //let s = bogobble::partial::mark_list::mark_str(&v, l).expect("Marking out of String");
             let res = format!("{}{}", s, color::Fg(color::Reset));
@@ -237,5 +238,5 @@ pub fn build_line<'a>(l: &str) -> String {
                 color::Fg(color::Reset)
             ),
         },
-    }
+    }*/
 }

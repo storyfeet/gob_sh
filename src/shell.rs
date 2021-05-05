@@ -46,7 +46,8 @@ impl Shell {
         self.prompt.clear_help();
         let c_line = &self.prompt.cursor.on_to_space();
         let clen = c_line.len();
-        let top = match crate::partial::Lines.parse_s(c_line) {
+        unimplemented! {}
+        /*        let top = match crate::partial::Lines.parse_s(c_line) {
             Ok(t) => t,
             Err(e) => {
                 self.prompt.message = Some(format!("{}", e));
@@ -71,7 +72,7 @@ impl Shell {
                 self.prompt.cursor.replace_range(tabr.with_end(clen), &tc);
             }
             Complete::Many(v) => self.prompt.options = Some((tabr.with_end(clen), v)),
-        }
+        }*/
     }
 
     pub fn on_enter(&mut self, rt: &mut RT) {

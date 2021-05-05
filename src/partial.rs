@@ -2,11 +2,10 @@ use bogobble::partial::*;
 use bogobble::*;
 use std::fmt::{self, Display, Write};
 use termion::color;
-#[macro_use]
-use transliterate::*;
 use transliterate::parser::*;
+use transliterate::*;
 
-type PT = PosTree<Item>;
+//type PT = PosTree<Item>;
 
 pub struct PConfig {}
 
@@ -234,7 +233,7 @@ pub struct PRHash;
 
 impl SSParser<PConfig> for PRHash {
     fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &PConfig) -> SSRes<'a> {
-        let i2 = it.clone();
+        let mut i2 = it.clone();
         match i2.next() {
             Some('r') => {}
             None => {
@@ -246,7 +245,7 @@ impl SSParser<PConfig> for PRHash {
         }
 
         //count hashes
-        let nhashes = 0;
+        let mut nhashes = 0;
         loop {
             match i2.next() {
                 Some('#') => nhashes += 1,
@@ -255,6 +254,8 @@ impl SSParser<PConfig> for PRHash {
                     res.push_str(it.str_to(i2.index()));
                     break;
                 }
+                Some(_) => return Err(i2.err_s("RawString")),
+                None => return Ok((i2, None)),
             }
         }
         cf.put_item(Item::Quoted, res);
@@ -263,8 +264,8 @@ impl SSParser<PConfig> for PRHash {
         loop {
             match i2.next() {
                 Some('"') => {
-                    let i3 = it.clone();
-                    for i in 0..nhashes {
+                    let mut i3 = it.clone();
+                    for _ in 0..nhashes {
                         match i3.next() {
                             Some('#') => {}
                             _ => {
