@@ -3,11 +3,12 @@ use crate::cursor::Cursor;
 use crate::guess_manager::*;
 use crate::ui;
 use crate::RT;
-use bogobble::{partial::ranger::Ranger, traits::*};
+use bogobble::partial::ranger::Ranger;
 use std::fmt::Write;
 use std::io::Write as IWrite;
 use std::path::PathBuf;
 use termion::color;
+use transliterate::parser::*;
 
 #[derive(Debug, Clone)]
 pub struct Prompt {
@@ -212,9 +213,10 @@ impl Prompt {
 }
 
 pub fn build_line<'a>(l: &str) -> String {
-    match crate::partial::Lines.parse_s(l) {
-        Ok(v) => {
-            let s = bogobble::partial::mark_list::mark_str(&v, l).expect("Marking out of String");
+    use crate::partial::*;
+    match Lines.ss_convert(l, &PConfig {}) {
+        Ok(s) => {
+            //let s = bogobble::partial::mark_list::mark_str(&v, l).expect("Marking out of String");
             let res = format!("{}{}", s, color::Fg(color::Reset));
             let res = res.replace("\n", "\n... ");
             res
