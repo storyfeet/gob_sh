@@ -214,17 +214,17 @@ impl Prompt {
 
 pub fn build_line<'a>(l: &str) -> String {
     use crate::partial::*;
-    println!("Line = '{}'\r", l);
+    //println!("Line = '{}'\r", l);
     match Lines.ss_convert(l, &PConfig {}) {
         Ok(s) => {
             //let s = bogobble::partial::mark_list::mark_str(&v, l).expect("Marking out of String");
-            println!("parsed line = '{}'\r\n\n", s);
+            //       println!("parsed line = '{}'\r\n\n", s);
             let res = format!("{}{}", s, color::Fg(color::Reset));
             let res = res.replace("\n", "\n... ");
             res
         }
         Err(e) => {
-            println!("Parse Error '{}',\r\n\n\n", e);
+            //      println!("Parse Error '{}',\r\n\n\n", e);
             match e.index {
                 Some(0) | None => format!(
                     "{}{}{}",

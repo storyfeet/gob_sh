@@ -1,6 +1,6 @@
 //! Some options for statements to run, or persistent data
 use crate::cursor::Cursor;
-use crate::partial::Item;
+//use crate::partial::Item;
 use crate::Action;
 use bogobble::traits::*;
 use termion::event::Key;
