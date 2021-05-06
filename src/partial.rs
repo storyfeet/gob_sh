@@ -1,6 +1,6 @@
 use bogobble::partial::*;
 use bogobble::*;
-use std::fmt::{self, Display, Write};
+use std::fmt::{self, Debug, Display, Write};
 use termion::color;
 use transliterate::parser::*;
 use transliterate::*;
@@ -68,7 +68,8 @@ pub struct ItemWrap<P: SSParser<PConfig>> {
 impl<P: SSParser<PConfig>> SSParser<PConfig> for ItemWrap<P> {
     //TODO allow partials
     fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &PConfig) -> SSRes<'a> {
-        (self.item, BRP(&self.p), WS.istar()).ss_parse(it, res, cf)
+        println!("ITEM WRAP --- {:?} \r", self.item);
+        (self.item, WS.star(), BRP(&self.p), WS.star()).ss_parse(it, res, cf)
     }
 }
 
@@ -86,15 +87,19 @@ fn sym<P: SSParser<PConfig>>(p: P) -> ItemWrap<KeyWord<P>> {
     }
 }
 
+ss_parser! { WN,
+    " \n\t\r".star()
+}
+
 ss_parser! {End,
     WS_(ss_or!("\n;".one(),EOI))
 }
 
 ss_parser! {(Empties,PConfig),
-    PStar(WS_(ss_or!(
-            "\n;".iplus(),
-            ("#",not("\n;").istar()),
-        )))
+    PStar((SSDebug("EMPTIES\r"),WS_(ss_or!(
+            "\n;".plus(),
+            ("#",not("\n;").plus()),
+        ))))
 }
 
 ss_parser! {(ExChannel,PConfig),
@@ -102,11 +107,11 @@ ss_parser! {(ExChannel,PConfig),
 }
 
 ss_parser! {(Lines,PConfig),
-    (Empties, PStar(WS_(FullStatement)),EOI),
+    (Empties,SSDebug("pre statement\r"), PStar(WS_(FullStatement)),SSDebug("post statement\r"),EOI,SSDebug("Complete")),
 }
 
 ss_parser! {(FullStatement,PConfig),
-    (Statement,PPlus(End),Empties)
+    (SSDebug("FullStatement\r"),Statement,SSDebug("Full Statement Statement end\r"),PPlus(End),Empties)
 }
 
 ss_parser! {(Id,PConfig),
@@ -119,13 +124,14 @@ ss_parser! {(Idents,PConfig),
 
 ss_parser! { (Statement,PConfig),
     ss_or!(
-        (kw("let"), Idents,sym(WS_("=")),ArgsS),
-        (kw("export"), Idents,sym(WS_("=")),ArgsS),
-        (kw("cd"),WS_(ArgsS)),
-        (kw("for"),WS_(ArgsS),PlusUntil(Id,kw("in")),ArgsP,Block),
-        (kw("if"),WS_(ExprRight),Block,Maybe((WN_(kw("else")),Block))),
+        (kw("let"), Idents,WS,sym("="),ArgsS),
+        (kw("export"), Idents,WS,sym("="),ArgsS),
+        (kw("cd"),WS,ArgsS),
+        (kw("for"),WS,ArgsS,PlusUntil(Id,kw("in")),ArgsP,Block),
+        (kw("if"),WS,ExprRight,Block,Maybe((WN,kw("else"),Block))),
         (kw("disown"),PExec),
         (sym(". "),WS_(Path)),
+        ExprRight,
     )
 }
 
@@ -148,17 +154,12 @@ ss_parser! {(Block,PConfig),
 }
 
 ss_parser! {(ExprLeft ,PConfig),
-    (PExec,WS_(Maybe(sym((">",Maybe(">"))))),WS_(ArgP))
+    (SSDebug("ExprLeft Begin\r"),PExec,WS_(Maybe((sym((">",Maybe(">"))),WS_(ArgP)))))
     //p_list!((Item::Expr) PExec,ws_(pMaybe(p_list!((Item::Command) ExChannel,sym(">"),Maybe(sym(">"),Item::Symbol),ws_(ArgP)),Item::Command)))
 }
 
 ss_parser! {(ExprRight,PConfig),
-    (ExprLeft,Maybe((WS_(sym(ss_or!("&&","||"))),WN_(ExprRight))))
-    /*p_list!(
-        (Item::Expr)
-        ExprLeft,
-        Maybe(ws_(sym(or("&&","||"))).merge(Item::Expr,WN_(ExprRight)),Item::Expr),
-    )*/
+    (SSDebug("ExprRight begin\r"),ExprLeft,Maybe((WS_(sym(ss_or!("&&","||"))),WN_(ExprRight))))
 }
 
 ss_parser! {(ExTarget,PConfig),
@@ -171,12 +172,11 @@ ss_parser! {(PConnection,PConfig),
 }
 
 ss_parser! {Path,
-    ((Maybe("~"),PPlus(ss_or!("\\ ",ss(("/._-",Alpha,NumDigit).iplus())))))
+    (SSDebug("Path Begin\r"),Maybe("~"),PPlus((SSDebug("Path Part"),ss_or!("\\ ",("/._-",Alpha,NumDigit).plus()))))
 }
 
 ss_parser! {(PExec,PConfig),
-    (Path,ArgsS,Maybe(WS_(PConnection)))
-    //tpos(Path,Item::Command).merge(Item::Command,ArgsS).opush(Maybe(ws_(PConnection)))
+    (SSDebug("PExec begin\r"), Path, SSDebug("Path Complete"),ArgsS,Maybe(WS_(PConnection)))
 }
 
 ss_parser! {(ArgsS ,PConfig),
@@ -188,14 +188,14 @@ ss_parser! {(ArgsP ,PConfig),
 
 ss_parser! { QuotedLitString,
     PPlus(ss_or!(
-            ss(not("${}()[]\\\"").iplus()),
+            not("${}()[]\\\"").plus(),
             ("\\",ss_or!(Any.one(),EOI)),
     ))
 }
 
 ss_parser! { (LitString,PConfig),
    PPlus(ss_or!(
-            not("#&$|^{}()[]\\\" \n\t<>;").iplus(),
+            not("#&$|^{}()[]\\\" \n\t<>;").plus(),
             ("\\",ss_or!(ss(Any.one()),EOI)),
     ))
 }
@@ -204,8 +204,8 @@ ss_parser! {(StringPart,PConfig),
     ss_or!(
         (Put(Item::Command), sym("$["),WS__(PExec),sym("]")),
         (Put(Item::Command), sym("$("),WS__(PExec),sym(")")),
-        (Put(Item::Var), sym("${"),WS__(ss((Alpha,NumDigit,"_").iplus())),sym("}")),
-        (Put(Item::Var), sym("$"),(Alpha,NumDigit,"_").iplus()),
+        (Put(Item::Var), sym("${"),WS__((Alpha,NumDigit,"_").plus()),sym("}")),
+        (Put(Item::Var), sym("$"),(Alpha,NumDigit,"_").plus()),
         LitString,
     )
 }
@@ -214,18 +214,18 @@ ss_parser! {(QuotedStringPart,PConfig),
     ss_or!(
         (Put(Item::Command) ,sym("$["),WS__(PExec),sym("]")),
         (Put(Item::Command), sym("$("),WS__(PExec),sym(")")),
-        (Put(Item::Var), sym("${"),WS__((Alpha,NumDigit,"_").iplus()),sym("}")),
-        (Put(Item::Var),sym("$"),(Alpha,NumDigit,"_").iplus()),
+        (Put(Item::Var), sym("${"),WS__((Alpha,NumDigit,"_").plus()),sym("}")),
+        (Put(Item::Var),sym("$"),(Alpha,NumDigit,"_").plus()),
         QuotedLitString,
     )
 }
 
 ss_parser! {(ArgP,PConfig),
-    ss_or!(
+    (SSDebug("ArgP begin"),ss_or!(
         PRHash,
         PPlus(StringPart),
         (Put(Item::String),sym("\""),Put(Item::Quoted),PStar(QuotedStringPart),sym("\""))
-    )
+    ))
 }
 
 /// partial Raw strings eg: r###" Any \ "##  wierd \ string "###

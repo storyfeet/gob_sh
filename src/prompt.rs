@@ -214,29 +214,33 @@ impl Prompt {
 
 pub fn build_line<'a>(l: &str) -> String {
     use crate::partial::*;
-    l.to_string()
-    /*TODO FIX match Lines.ss_convert(l, &PConfig {}) {
+    println!("Line = '{}'\r", l);
+    match Lines.ss_convert(l, &PConfig {}) {
         Ok(s) => {
             //let s = bogobble::partial::mark_list::mark_str(&v, l).expect("Marking out of String");
+            println!("parsed line = '{}'\r\n\n", s);
             let res = format!("{}{}", s, color::Fg(color::Reset));
             let res = res.replace("\n", "\n... ");
             res
         }
-        Err(e) => match e.index {
-            Some(0) | None => format!(
-                "{}{}{}",
-                color::Fg(color::LightRed),
-                l,
-                color::Fg(color::Reset),
-            )
-            .replace("\n", "\n... "),
-            Some(n) => format!(
-                "{}{}{}{}",
-                build_line(&l[0..n]),
-                color::Fg(color::LightRed),
-                &l[n..].replace("\n", "\n... "),
-                color::Fg(color::Reset)
-            ),
-        },
-    }*/
+        Err(e) => {
+            println!("Parse Error '{}',\r\n\n\n", e);
+            match e.index {
+                Some(0) | None => format!(
+                    "{}{}{}",
+                    color::Fg(color::LightRed),
+                    l,
+                    color::Fg(color::Reset),
+                )
+                .replace("\n", "\n... "),
+                Some(n) => format!(
+                    "{}{}{}{}",
+                    build_line(&l[0..n]),
+                    color::Fg(color::LightRed),
+                    &l[n..].replace("\n", "\n... "),
+                    color::Fg(color::Reset)
+                ),
+            }
+        }
+    }
 }
