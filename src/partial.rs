@@ -51,8 +51,9 @@ impl Display for Item {
             Item::Keyword => write!(f, "{}", color::Fg(color::Yellow)),
             Item::Statement => write!(f, "{}", color::Fg(color::LightMagenta)),
             Item::Symbol => write!(f, "{}", color::Fg(color::Blue)),
+            Item::Var => write!(f, "{}", color::Fg(color::LightMagenta)),
             Item::Ident | Item::Path => write!(f, "{}", color::Fg(color::Reset)),
-            Item::String => write!(f, "{}", color::Fg(color::LightGreen)),
+            Item::String | Item::Quoted => write!(f, "{}", color::Fg(color::LightGreen)),
             Item::Lit => write!(f, "{}", color::Fg(color::LightYellow)),
             Item::Esc => write!(f, "{}", color::Fg(color::LightBlue)),
             Item::Comment => write!(f, "{}", color::Fg(color::LightBlue)),
@@ -69,8 +70,7 @@ pub struct ItemWrap<P: SSParser<PConfig>> {
 impl<P: SSParser<PConfig>> SSParser<PConfig> for ItemWrap<P> {
     //TODO allow partials
     fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &PConfig) -> SSRes<'a> {
-        //        println!("ITEM WRAP --- {:?} \r", self.item);
-        (self.item, WS.star(), BRP(&self.p), WS.star()).ss_parse(it, res, cf)
+        (self.item, WS, BRP(&self.p), WS).ss_parse(it, res, cf)
     }
 }
 
@@ -93,14 +93,13 @@ ss_parser! { WN,
 }
 
 ss_parser! {End,
-    WS_(ss_or!("\n;".one(),EOI))
+    pl!(WS,ss_or!("\n;".one(),EOI))
 }
 
 ss_parser! {(Empties,PConfig),
-    PStar((WS,ss_or!(
-            "\n;".plus(),
+    PStar(ss_or!((" \n\t\r;").plus(),
             ("#",not("\n;").plus()),
-        )))
+        ))
 }
 
 ss_parser! {(ExChannel,PConfig),
@@ -108,11 +107,11 @@ ss_parser! {(ExChannel,PConfig),
 }
 
 ss_parser! {(Lines,PConfig),
-    (Empties, PStar(WS_(FullStatement)),EOI),
+    (PStar((Empties, FullStatement)),EOI),
 }
 
 ss_parser! {(FullStatement,PConfig),
-    (Statement,PPlus(End),Empties)
+    (Statement,End,Empties)
 }
 
 ss_parser! {(Id,PConfig),
@@ -125,29 +124,29 @@ ss_parser! {(Idents,PConfig),
 
 ss_parser! { (Statement,PConfig),
     ss_or!(
-        (kw("let"), Idents,WS,sym("="),ArgsS),
-        (kw("export"), Idents,WS,sym("="),ArgsS),
-        (kw("cd"),WS,ArgsS),
-        (kw("for"),PlusUntil(Id,kw("in")),ArgsP,Block),
-        (kw("if"),WS,ExprRight,Block,Maybe((WN,kw("else"),Block))),
-        (kw("disown"),PExec),
-        (sym(". "),WS_(Path)),
-        (FailOn(KeyWord(ss_or!("for","export","cd","let","if","else","disown"))),
+        pl!(kw("let"), Idents,WS,sym("="),ArgsS),
+        pl!(kw("export"), Idents,WS,sym("="),ArgsS),
+        pl!(kw("cd"),WS,ArgsS),
+        pl!(kw("for"),PlusUntil(Id,kw("in")),ArgsP,Block),
+        pl!(kw("if"),WS,ExprRight,Block,Maybe((WN,kw("else"),Block))),
+        pl!(kw("disown"),PExec),
+        pl!(sym(". "),WS_(Path)),
+        pl!(FailOn(KeyWord(ss_or!("for","export","cd","let","if","else","disown"))),
         ExprRight)
     )
 }
 
 ss_parser! {(Block,PConfig),
-    (WN,sym("{"),PStarUntil((WN,FullStatement),(WN,sym("}"))))
+    pl!(WN,Item::Symbol, "{" ,PStarUntil(pl!(WN,FullStatement),pl!(WN,Item::Symbol,"}")))
 }
 
 ss_parser! {(ExprLeft ,PConfig),
-    (PExec,Maybe((sym((">",Maybe(">"))),WS,ArgP)))
+    pl!(PExec,Maybe((sym((">",Maybe(">"))),WS,ArgP)))
     //p_list!((Item::Expr) PExec,ws_(pMaybe(p_list!((Item::Command) ExChannel,sym(">"),Maybe(sym(">"),Item::Symbol),ws_(ArgP)),Item::Command)))
 }
 
 ss_parser! {(ExprRight,PConfig),
-    (ExprLeft,Maybe((WS_(sym(ss_or!("&&","||"))),WN_(ExprRight))))
+    pl!(ExprLeft,Maybe((WS_(sym(ss_or!("&&","||"))),(WN,ExprRight))))
 }
 
 ss_parser! {(ExTarget,PConfig),
@@ -160,11 +159,11 @@ ss_parser! {(PConnection,PConfig),
 }
 
 ss_parser! {Path,
-    (Maybe("~"),PPlus((ss_or!("\\ ",("/._-",Alpha,NumDigit).plus()))))
+    pl!(Maybe("~"),PPlus(ss_or!("\\ ",("/._-",Alpha,NumDigit).plus())))
 }
 
 ss_parser! {(PExec,PConfig),
-    ( Path, ArgsS,Maybe(WS_(PConnection)))
+    pl!( Item::Command, Path, ArgsS,Maybe(WS_(PConnection)))
 }
 
 ss_parser! {(ArgsS ,PConfig),
@@ -190,30 +189,30 @@ ss_parser! { (LitString,PConfig),
 
 ss_parser! {(StringPart,PConfig),
     ss_or!(
-        (Put(Item::Command), sym("$["),WS__(PExec),sym("]")),
-        (Put(Item::Command), sym("$("),WS__(PExec),sym(")")),
-        (Put(Item::Var), sym("${"),WS__((Alpha,NumDigit,"_").plus()),sym("}")),
-        (Put(Item::Var), sym("$"),(Alpha,NumDigit,"_").plus()),
-        LitString,
+        pl!(Item::Symbol, "$[",WS,PExec,WS,Item::Symbol,"]"),
+        pl!(Item::Symbol, "$(",WS,PExec,WS,Item::Symbol,")"),
+        pl!(Item::Var, "${",WS,(Alpha,NumDigit,"_").plus(),WS,"}"),
+        pl!(Item::Var, "$",(Alpha,NumDigit,"_").plus()),
+        (Item::String,LitString),
     )
 }
 
 ss_parser! {(QuotedStringPart,PConfig),
     ss_or!(
-        (Put(Item::Command) ,sym("$["),WS__(PExec),sym("]")),
-        (Put(Item::Command), sym("$("),WS__(PExec),sym(")")),
-        (Put(Item::Var), sym("${"),WS__((Alpha,NumDigit,"_").plus()),sym("}")),
-        (Put(Item::Var),sym("$"),(Alpha,NumDigit,"_").plus()),
-        QuotedLitString,
+        pl!(Item::Symbol ,sym("$["),WS,PExec,WS,Item::Symbol,"]"),
+        pl!(Item::Symbol, sym("$("),WS,PExec,WS,Item::Symbol,")"),
+        pl!(Item::Var, "${",WS__((Alpha,NumDigit,"_").plus()),"}"),
+        pl!(Item::Var,"$",(Alpha,NumDigit,"_").plus()),
+        (Item::String,QuotedLitString),
     )
 }
 
 ss_parser! {(ArgP,PConfig),
-    (ss_or!(
+    ss_or!(
         PRHash,
         PPlus(StringPart),
-        (Put(Item::String),sym("\""),Put(Item::Quoted),PStar(QuotedStringPart),sym("\""))
-    ))
+        pl!(Put(Item::String),sym("\""),Put(Item::Quoted),PStar(QuotedStringPart),sym("\""))
+    )
 }
 
 /// partial Raw strings eg: r###" Any \ "##  wierd \ string "###
@@ -243,22 +242,25 @@ impl SSParser<PConfig> for PRHash {
                     break;
                 }
                 Some(_) => return Err(i2.err_s("RawString")),
-                None => return Ok((i2, None)),
+                None => {
+                    res.push_str(it.str_to(i2.index()));
+                    return Ok((i2, None));
+                }
             }
         }
         cf.put_item(Item::Quoted, res);
         let raw_start = i2.clone();
         let mut raw_fin = i2.clone();
-        loop {
+        'outer: loop {
             match i2.next() {
                 Some('"') => {
-                    let mut i3 = it.clone();
+                    let mut i3 = i2.clone();
                     for _ in 0..nhashes {
                         match i3.next() {
                             Some('#') => {}
                             _ => {
                                 raw_fin = i2.clone();
-                                continue;
+                                continue 'outer;
                             }
                         }
                     }
