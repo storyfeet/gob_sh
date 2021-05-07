@@ -12,7 +12,6 @@ pub struct PConfig {}
 
 impl PConfig {
     fn put_item(&self, i: Item, s: &mut String) {
-        //TODO Enable use of RU_HIGHLIGHT var
         write!(s, "{}", i).ok();
     }
 }
@@ -81,13 +80,6 @@ fn kw(s: &'static str) -> ItemWrap<PKeyWord> {
     }
 }
 
-fn sym<P: SSParser<PConfig>>(p: P) -> ItemWrap<KeyWord<P>> {
-    ItemWrap {
-        p: KeyWord(p),
-        item: Item::Symbol,
-    }
-}
-
 ss_parser! { WN,
     " \n\t\r".star()
 }
@@ -103,7 +95,7 @@ ss_parser! {(Empties,PConfig),
 }
 
 ss_parser! {(ExChannel,PConfig),
-    sym(ss_or!( "^^", "^", ""))
+    (Item::Symbol, ss_or!( "^^", "^", ""))
 }
 
 ss_parser! {(Lines,PConfig),
@@ -124,34 +116,33 @@ ss_parser! {(Idents,PConfig),
 
 ss_parser! { (Statement,PConfig),
     ss_or!(
-        pl!(kw("let"), Idents,WS,sym("="),ArgsS),
-        pl!(kw("export"), Idents,WS,sym("="),ArgsS),
+        pl!(kw("let"), Idents,WS,Item::Symbol,"=",ArgsS),
+        pl!(kw("export"), Idents,WS,Item::Symbol,"=",ArgsS),
         pl!(kw("cd"),WS,ArgsS),
         pl!(kw("for"),PlusUntil(Id,kw("in")),ArgsP,Block),
         pl!(kw("if"),WS,ExprRight,Block,Maybe((WN,kw("else"),Block))),
         pl!(kw("disown"),PExec),
-        pl!(sym(". "),WS_(Path)),
+        pl!(Item::Symbol,". ",WS,Item::Command, Path),
         pl!(FailOn(KeyWord(ss_or!("for","export","cd","let","if","else","disown"))),
         ExprRight)
     )
 }
 
 ss_parser! {(Block,PConfig),
-    pl!(WN,Item::Symbol, "{" ,PStarUntil(pl!(WN,FullStatement),pl!(WN,Item::Symbol,"}")))
+    pl!(WN,Item::Symbol, "{" ,PStarUntil(pl!(WN,FullStatement,WN),(Item::Symbol,"}")))
 }
 
 ss_parser! {(ExprLeft ,PConfig),
-    pl!(PExec,Maybe((sym((">",Maybe(">"))),WS,ArgP)))
+    pl!(PExec,Maybe((Item::Symbol,">",Maybe(">"),WS,ArgP)))
     //p_list!((Item::Expr) PExec,ws_(pMaybe(p_list!((Item::Command) ExChannel,sym(">"),Maybe(sym(">"),Item::Symbol),ws_(ArgP)),Item::Command)))
 }
 
 ss_parser! {(ExprRight,PConfig),
-    pl!(ExprLeft,Maybe((WS_(sym(ss_or!("&&","||"))),(WN,ExprRight))))
+    pl!(ExprLeft,Maybe((WS,Item::Symbol,ss_or!("&&","||"),(WN,ExprRight))))
 }
 
 ss_parser! {(ExTarget,PConfig),
-    (sym("|"),WS_(PExec))
-     //p_list!((Item::Exec) sym("|"),ws_(PExec))
+    (Item::Symbol,"|",WS,PExec)
 }
 
 ss_parser! {(PConnection,PConfig),
@@ -199,8 +190,8 @@ ss_parser! {(StringPart,PConfig),
 
 ss_parser! {(QuotedStringPart,PConfig),
     ss_or!(
-        pl!(Item::Symbol ,sym("$["),WS,PExec,WS,Item::Symbol,"]"),
-        pl!(Item::Symbol, sym("$("),WS,PExec,WS,Item::Symbol,")"),
+        pl!(Item::Symbol,Item::Symbol,"$[",WS,PExec,WS,Item::Symbol,"]"),
+        pl!(Item::Symbol, Item::Symbol,"$(",WS,PExec,WS,Item::Symbol,")"),
         pl!(Item::Var, "${",WS__((Alpha,NumDigit,"_").plus()),"}"),
         pl!(Item::Var,"$",(Alpha,NumDigit,"_").plus()),
         (Item::String,QuotedLitString),
@@ -211,7 +202,7 @@ ss_parser! {(ArgP,PConfig),
     ss_or!(
         PRHash,
         PPlus(StringPart),
-        pl!(Put(Item::String),sym("\""),Put(Item::Quoted),PStar(QuotedStringPart),sym("\""))
+        pl!(Put(Item::String),Item::Symbol,"\"",Put(Item::Quoted),PStar(QuotedStringPart),Item::Symbol,"\"")
     )
 }
 

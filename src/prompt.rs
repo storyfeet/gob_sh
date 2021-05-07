@@ -134,7 +134,11 @@ impl Prompt {
         let mut res = String::new();
         let (pwidth, _) = termion::terminal_size().unwrap_or((50, 50));
 
+        //println!("origin = {:?}\r\n", line);
+
         let line = build_line(line);
+
+        //println!("result = {:?}\r\n\n\n\n\n", line);
 
         if let Some(m) = &self.message {
             write!(res, "[{}]\n\r", m).ok();
