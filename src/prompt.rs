@@ -1,6 +1,7 @@
 //Manages carring all the messages to the user
 use crate::cursor::Cursor;
 use crate::guess_manager::*;
+use crate::highlight::Highlight;
 use crate::ui;
 use crate::RT;
 use bogobble::partial::ranger::Ranger;
@@ -19,6 +20,7 @@ pub struct Prompt {
     pub message: Option<String>,
     pub cursor: Cursor,
     pub guess_man: GuessManager,
+    pub highlight: Highlight,
 }
 
 impl Prompt {
@@ -31,6 +33,14 @@ impl Prompt {
             built: String::new(),
             cursor: Cursor::at_end(String::new()),
             guess_man: GuessManager::new(Some(20)),
+            highlight: Highlight::empty(),
+        }
+    }
+
+    pub fn set_highlight(&mut self, s: &str) {
+        match Highlight::from_str(s) {
+            Ok(v) => self.highlight = v,
+            Err(e) => self.message = Some(format!("highlight parse error: {}", e)),
         }
     }
 
@@ -136,7 +146,7 @@ impl Prompt {
 
         //println!("origin = {:?}\r\n", line);
 
-        let line = build_line(line);
+        let line = build_line(line, &self.highlight);
 
         //println!("result = {:?}\r\n\n\n\n\n", line);
 
@@ -216,10 +226,10 @@ impl Prompt {
     }
 }
 
-pub fn build_line<'a>(l: &str) -> String {
+pub fn build_line<'a>(l: &str, hl: &Highlight) -> String {
     use crate::partial::*;
     //println!("Line = '{}'\r", l);
-    match Lines.ss_convert(l, &PConfig {}) {
+    match Lines.ss_convert(l, hl) {
         Ok(s) => {
             //let s = bogobble::partial::mark_list::mark_str(&v, l).expect("Marking out of String");
             //       println!("parsed line = '{}'\r\n\n", s);
@@ -239,7 +249,7 @@ pub fn build_line<'a>(l: &str) -> String {
                 .replace("\n", "\n... "),
                 Some(n) => format!(
                     "{}{}{}{}",
-                    build_line(&l[0..n]),
+                    build_line(&l[0..n], hl),
                     color::Fg(color::LightRed),
                     &l[n..].replace("\n", "\n... "),
                     color::Fg(color::Reset)

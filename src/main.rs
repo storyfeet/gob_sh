@@ -4,6 +4,7 @@ mod cursor;
 mod exec;
 mod expr;
 mod guess_manager;
+mod highlight;
 mod parser;
 mod partial;
 mod prompt;

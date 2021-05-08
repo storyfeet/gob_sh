@@ -1,74 +1,26 @@
+use crate::highlight::*;
 use bogobble::partial::*;
 use bogobble::*;
-use std::fmt::{self, Debug, Display, Write};
-use termion::color;
+use std::fmt::Debug;
 use transliterate::bo_part::*;
 use transliterate::parser::*;
 use transliterate::*;
 
-//type PT = PosTree<Item>;
-
-pub struct PConfig {}
-
-impl PConfig {
-    fn put_item(&self, i: Item, s: &mut String) {
-        write!(s, "{}", i).ok();
-    }
-}
-
-impl SSParser<PConfig> for Item {
-    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, c: &PConfig) -> SSRes<'a> {
+impl SSParser<Highlight> for Item {
+    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, c: &Highlight) -> SSRes<'a> {
         c.put_item(*self, res);
         Ok((it.clone(), None))
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Item {
-    Keyword,
-    Statement,
-    Symbol,
-    Ident,
-    Path,
-    Exec,
-    Esc,
-    Lit,
-    Command,
-    Comment,
-    Var,
-    Arg,
-    Args,
-    String,
-    Quoted,
-    Expr,
-    End,
-}
-
-impl Display for Item {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Item::Keyword => write!(f, "{}", color::Fg(color::Yellow)),
-            Item::Statement => write!(f, "{}", color::Fg(color::LightMagenta)),
-            Item::Symbol => write!(f, "{}", color::Fg(color::Blue)),
-            Item::Var => write!(f, "{}", color::Fg(color::LightMagenta)),
-            Item::Ident | Item::Path => write!(f, "{}", color::Fg(color::Reset)),
-            Item::String | Item::Quoted => write!(f, "{}", color::Fg(color::LightGreen)),
-            Item::Lit => write!(f, "{}", color::Fg(color::LightYellow)),
-            Item::Esc => write!(f, "{}", color::Fg(color::LightBlue)),
-            Item::Comment => write!(f, "{}", color::Fg(color::LightBlue)),
-            _ => write!(f, "{}", color::Fg(color::Reset)),
-        }
-    }
-}
-
-pub struct ItemWrap<P: SSParser<PConfig>> {
+pub struct ItemWrap<P: SSParser<Highlight>> {
     p: P,
     item: Item,
 }
 
-impl<P: SSParser<PConfig>> SSParser<PConfig> for ItemWrap<P> {
+impl<P: SSParser<Highlight>> SSParser<Highlight> for ItemWrap<P> {
     //TODO allow partials
-    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &PConfig) -> SSRes<'a> {
+    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &Highlight) -> SSRes<'a> {
         (self.item, WS, BRP(&self.p), WS).ss_parse(it, res, cf)
     }
 }
@@ -88,33 +40,33 @@ ss_parser! {End,
     pl!(WS,ss_or!("\n;".one(),EOI))
 }
 
-ss_parser! {(Empties,PConfig),
+ss_parser! {(Empties,Highlight),
     PStar(ss_or!((" \n\t\r;").plus(),
             ("#",not("\n;").plus()),
         ))
 }
 
-ss_parser! {(ExChannel,PConfig),
+ss_parser! {(ExChannel,Highlight),
     (Item::Symbol, ss_or!( "^^", "^", ""))
 }
 
-ss_parser! {(Lines,PConfig),
+ss_parser! {(Lines,Highlight),
     (PStar((Empties, FullStatement)),EOI),
 }
 
-ss_parser! {(FullStatement,PConfig),
+ss_parser! {(FullStatement,Highlight),
     (Statement,End,Empties)
 }
 
-ss_parser! {(Id,PConfig),
+ss_parser! {(Id,Highlight),
     (WS,Item::Ident,common::Ident,WS)
 }
 
-ss_parser! {(Idents,PConfig),
+ss_parser! {(Idents,Highlight),
     (Item::Ident, PPlus(WS__(common::Ident))),
 }
 
-ss_parser! { (Statement,PConfig),
+ss_parser! { (Statement,Highlight),
     ss_or!(
         pl!(kw("let"), Idents,WS,Item::Symbol,"=",ArgsS),
         pl!(kw("export"), Idents,WS,Item::Symbol,"=",ArgsS),
@@ -128,24 +80,24 @@ ss_parser! { (Statement,PConfig),
     )
 }
 
-ss_parser! {(Block,PConfig),
+ss_parser! {(Block,Highlight),
     pl!(WN,Item::Symbol, "{" ,PStarUntil(pl!(WN,FullStatement,WN),(Item::Symbol,"}")))
 }
 
-ss_parser! {(ExprLeft ,PConfig),
+ss_parser! {(ExprLeft ,Highlight),
     pl!(PExec,Maybe((Item::Symbol,">",Maybe(">"),WS,ArgP)))
     //p_list!((Item::Expr) PExec,ws_(pMaybe(p_list!((Item::Command) ExChannel,sym(">"),Maybe(sym(">"),Item::Symbol),ws_(ArgP)),Item::Command)))
 }
 
-ss_parser! {(ExprRight,PConfig),
+ss_parser! {(ExprRight,Highlight),
     pl!(ExprLeft,Maybe((WS,Item::Symbol,ss_or!("&&","||"),(WN,ExprRight))))
 }
 
-ss_parser! {(ExTarget,PConfig),
+ss_parser! {(ExTarget,Highlight),
     (Item::Symbol,"|",WS,PExec)
 }
 
-ss_parser! {(PConnection,PConfig),
+ss_parser! {(PConnection,Highlight),
     (ExChannel,ExTarget)
 }
 
@@ -153,14 +105,14 @@ ss_parser! {Path,
     pl!(Maybe("~"),PPlus(ss_or!("\\ ",("/._-",Alpha,NumDigit).plus())))
 }
 
-ss_parser! {(PExec,PConfig),
+ss_parser! {(PExec,Highlight),
     pl!( Item::Command, Path, ArgsS,Maybe(WS_(PConnection)))
 }
 
-ss_parser! {(ArgsS ,PConfig),
+ss_parser! {(ArgsS ,Highlight),
     PStar((WS,ArgP))
 }
-ss_parser! {(ArgsP ,PConfig),
+ss_parser! {(ArgsP ,Highlight),
     PPlus((WS,Item::Arg,ArgP))
 }
 
@@ -171,14 +123,14 @@ ss_parser! { QuotedLitString,
     ))
 }
 
-ss_parser! { (LitString,PConfig),
+ss_parser! { (LitString,Highlight),
    PPlus(ss_or!(
             not("#&$|^{}()[]\\\" \n\t<>;").plus(),
             ("\\",ss_or!(ss(Any.one()),EOI)),
     ))
 }
 
-ss_parser! {(StringPart,PConfig),
+ss_parser! {(StringPart,Highlight),
     ss_or!(
         pl!(Item::Symbol, "$[",WS,PExec,WS,Item::Symbol,"]"),
         pl!(Item::Symbol, "$(",WS,PExec,WS,Item::Symbol,")"),
@@ -188,7 +140,7 @@ ss_parser! {(StringPart,PConfig),
     )
 }
 
-ss_parser! {(QuotedStringPart,PConfig),
+ss_parser! {(QuotedStringPart,Highlight),
     ss_or!(
         pl!(Item::Symbol,Item::Symbol,"$[",WS,PExec,WS,Item::Symbol,"]"),
         pl!(Item::Symbol, Item::Symbol,"$(",WS,PExec,WS,Item::Symbol,")"),
@@ -198,7 +150,7 @@ ss_parser! {(QuotedStringPart,PConfig),
     )
 }
 
-ss_parser! {(ArgP,PConfig),
+ss_parser! {(ArgP,Highlight),
     ss_or!(
         PRHash,
         PPlus(StringPart),
@@ -209,8 +161,8 @@ ss_parser! {(ArgP,PConfig),
 /// partial Raw strings eg: r###" Any \ "##  wierd \ string "###
 pub struct PRHash;
 
-impl SSParser<PConfig> for PRHash {
-    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &PConfig) -> SSRes<'a> {
+impl SSParser<Highlight> for PRHash {
+    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &Highlight) -> SSRes<'a> {
         let mut i2 = it.clone();
         match i2.next() {
             Some('r') => {}
