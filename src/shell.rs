@@ -44,9 +44,13 @@ impl Shell {
 
     fn tab_complete(&mut self) {
         self.prompt.clear_help();
-        let c_line = &self.prompt.cursor.on_to_space();
-        let clen = c_line.len();
-                let top = match crate::partial::Lines.parse_s(c_line) {
+
+        ci = match self.prompt.cursor.item_over(){   
+            Ok(ci)=>
+        }
+        
+        let top = match crate::tab_complete::item_at_cursor(self.prompt.cursor.)
+            match crate::partial::Lines.parse_s(c_line) {
             Ok(t) => t,
             Err(e) => {
                 self.prompt.message = Some(format!("{}", e));

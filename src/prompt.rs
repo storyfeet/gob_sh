@@ -9,7 +9,6 @@ use std::fmt::Write;
 use std::io::Write as IWrite;
 use std::path::PathBuf;
 use termion::color;
-use transliterate::parser::*;
 
 #[derive(Debug, Clone)]
 pub struct Prompt {
@@ -227,9 +226,7 @@ impl Prompt {
 }
 
 pub fn build_line<'a>(l: &str, hl: &Highlight) -> String {
-    use crate::partial::*;
-    //println!("Line = '{}'\r", l);
-    match Lines.ss_convert(l, hl) {
+    match hl.highlight(l) {
         Ok(s) => {
             //let s = bogobble::partial::mark_list::mark_str(&v, l).expect("Marking out of String");
             //       println!("parsed line = '{}'\r\n\n", s);

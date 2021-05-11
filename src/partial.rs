@@ -1,26 +1,85 @@
-use crate::highlight::*;
 use bogobble::partial::*;
 use bogobble::*;
-use std::fmt::Debug;
+use std::fmt::{self, Debug, Display};
+use termion::*;
 use transliterate::bo_part::*;
 use transliterate::parser::*;
 use transliterate::*;
 
-impl SSParser<Highlight> for Item {
-    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, c: &Highlight) -> SSRes<'a> {
-        c.put_item(*self, res);
+pub trait ParseMark {
+    fn mark(&self, item: Item, s: &mut String, pos: Option<usize>);
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Item {
+    Keyword,
+    Symbol,
+    Ident,
+    Path,
+    Exec,
+    Esc,
+    Lit,
+    Command,
+    Comment,
+    Var,
+    Arg,
+    String,
+    Quoted,
+    Expr,
+}
+
+impl Item {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Item::Keyword => "keyword",
+            Item::Symbol => "symbol",
+            Item::Ident => "ident",
+            Item::Path => "path",
+            Item::Exec => "exec",
+            Item::Esc => "esc",
+            Item::Lit => "lit",
+            Item::Command => "command",
+            Item::Comment => "comment",
+            Item::Var => "var",
+            Item::Arg => "arg",
+            Item::String => "string",
+            Item::Quoted => "quoted",
+            Item::Expr => "expr",
+        }
+    }
+}
+
+impl Display for Item {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Item::Keyword => write!(f, "{}", color::Fg(color::Yellow)),
+            //Item::Statement => write!(f, "{}", color::Fg(color::LightMagenta)),
+            Item::Symbol => write!(f, "{}", color::Fg(color::Blue)),
+            Item::Var => write!(f, "{}", color::Fg(color::LightMagenta)),
+            Item::Ident | Item::Path => write!(f, "{}", color::Fg(color::Reset)),
+            Item::String | Item::Quoted => write!(f, "{}", color::Fg(color::LightGreen)),
+            Item::Lit => write!(f, "{}", color::Fg(color::LightYellow)),
+            Item::Esc => write!(f, "{}", color::Fg(color::LightBlue)),
+            Item::Comment => write!(f, "{}", color::Fg(color::LightBlue)),
+            _ => write!(f, "{}", color::Fg(color::Reset)),
+        }
+    }
+}
+impl<CF: ParseMark> SSParser<CF> for Item {
+    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, c: &CF) -> SSRes<'a> {
+        c.mark(*self, res, it.index());
         Ok((it.clone(), None))
     }
 }
 
-pub struct ItemWrap<P: SSParser<Highlight>> {
+pub struct ItemWrap<P> {
     p: P,
     item: Item,
 }
 
-impl<P: SSParser<Highlight>> SSParser<Highlight> for ItemWrap<P> {
+impl<CF: ParseMark, P: SSParser<CF>> SSParser<CF> for ItemWrap<P> {
     //TODO allow partials
-    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &Highlight) -> SSRes<'a> {
+    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &CF) -> SSRes<'a> {
         (self.item, WS, BRP(&self.p), WS).ss_parse(it, res, cf)
     }
 }
@@ -32,41 +91,41 @@ fn kw(s: &'static str) -> ItemWrap<PKeyWord> {
     }
 }
 
-ss_parser! { WN,
+ss_parser! { WN:ParseMark,
     " \n\t\r".star()
 }
 
-ss_parser! {End,
+ss_parser! {End:ParseMark,
     pl!(WS,ss_or!("\n;".one(),EOI))
 }
 
-ss_parser! {(Empties,Highlight),
+ss_parser! {Empties:ParseMark,
     PStar(ss_or!((" \n\t\r;").plus(),
             ("#",not("\n;").plus()),
         ))
 }
 
-ss_parser! {(ExChannel,Highlight),
+ss_parser! {ExChannel:ParseMark,
     (Item::Symbol, ss_or!( "^^", "^", ""))
 }
 
-ss_parser! {(Lines,Highlight),
+ss_parser! {Lines:ParseMark,
     (PStar((Empties, FullStatement)),EOI),
 }
 
-ss_parser! {(FullStatement,Highlight),
+ss_parser! {FullStatement:ParseMark,
     (Statement,End,Empties)
 }
 
-ss_parser! {(Id,Highlight),
+ss_parser! {Id:ParseMark,
     (WS,Item::Ident,common::Ident,WS)
 }
 
-ss_parser! {(Idents,Highlight),
+ss_parser! {Idents:ParseMark,
     (Item::Ident, PPlus(WS__(common::Ident))),
 }
 
-ss_parser! { (Statement,Highlight),
+ss_parser! { Statement:ParseMark,
     ss_or!(
         pl!(kw("let"), Idents,WS,Item::Symbol,"=",ArgsS),
         pl!(kw("export"), Idents,WS,Item::Symbol,"=",ArgsS),
@@ -80,57 +139,57 @@ ss_parser! { (Statement,Highlight),
     )
 }
 
-ss_parser! {(Block,Highlight),
+ss_parser! {Block:ParseMark,
     pl!(WN,Item::Symbol, "{" ,PStarUntil(pl!(WN,FullStatement,WN),(Item::Symbol,"}")))
 }
 
-ss_parser! {(ExprLeft ,Highlight),
+ss_parser! {ExprLeft:ParseMark,
     pl!(PExec,Maybe((Item::Symbol,">",Maybe(">"),WS,ArgP)))
     //p_list!((Item::Expr) PExec,ws_(pMaybe(p_list!((Item::Command) ExChannel,sym(">"),Maybe(sym(">"),Item::Symbol),ws_(ArgP)),Item::Command)))
 }
 
-ss_parser! {(ExprRight,Highlight),
+ss_parser! {ExprRight:ParseMark,
     pl!(ExprLeft,Maybe((WS,Item::Symbol,ss_or!("&&","||"),(WN,ExprRight))))
 }
 
-ss_parser! {(ExTarget,Highlight),
+ss_parser! {ExTarget:ParseMark,
     (Item::Symbol,"|",WS,PExec)
 }
 
-ss_parser! {(PConnection,Highlight),
+ss_parser! {PConnection:ParseMark,
     (ExChannel,ExTarget)
 }
 
-ss_parser! {Path,
+ss_parser! {Path:ParseMark,
     pl!(Maybe("~"),PPlus(ss_or!("\\ ",("/._-",Alpha,NumDigit).plus())))
 }
 
-ss_parser! {(PExec,Highlight),
+ss_parser! {PExec:ParseMark,
     pl!( Item::Command, Path, ArgsS,Maybe(WS_(PConnection)))
 }
 
-ss_parser! {(ArgsS ,Highlight),
+ss_parser! {ArgsS :ParseMark,
     PStar((WS,ArgP))
 }
-ss_parser! {(ArgsP ,Highlight),
+ss_parser! {ArgsP :ParseMark,
     PPlus((WS,Item::Arg,ArgP))
 }
 
-ss_parser! { QuotedLitString,
+ss_parser! { QuotedLitString:ParseMark,
     PPlus(ss_or!(
             not("${}()[]\\\"").plus(),
             ("\\",ss_or!(Any.one(),EOI)),
     ))
 }
 
-ss_parser! { (LitString,Highlight),
+ss_parser! { LitString:ParseMark,
    PPlus(ss_or!(
             not("#&$|^{}()[]\\\" \n\t<>;").plus(),
             ("\\",ss_or!(ss(Any.one()),EOI)),
     ))
 }
 
-ss_parser! {(StringPart,Highlight),
+ss_parser! {StringPart:ParseMark,
     ss_or!(
         pl!(Item::Symbol, "$[",WS,PExec,WS,Item::Symbol,"]"),
         pl!(Item::Symbol, "$(",WS,PExec,WS,Item::Symbol,")"),
@@ -140,7 +199,7 @@ ss_parser! {(StringPart,Highlight),
     )
 }
 
-ss_parser! {(QuotedStringPart,Highlight),
+ss_parser! {QuotedStringPart:ParseMark,
     ss_or!(
         pl!(Item::Symbol,Item::Symbol,"$[",WS,PExec,WS,Item::Symbol,"]"),
         pl!(Item::Symbol, Item::Symbol,"$(",WS,PExec,WS,Item::Symbol,")"),
@@ -150,7 +209,7 @@ ss_parser! {(QuotedStringPart,Highlight),
     )
 }
 
-ss_parser! {(ArgP,Highlight),
+ss_parser! {ArgP:ParseMark,
     ss_or!(
         PRHash,
         PPlus(StringPart),
@@ -161,13 +220,13 @@ ss_parser! {(ArgP,Highlight),
 /// partial Raw strings eg: r###" Any \ "##  wierd \ string "###
 pub struct PRHash;
 
-impl SSParser<Highlight> for PRHash {
-    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &Highlight) -> SSRes<'a> {
+impl<CF: ParseMark> SSParser<CF> for PRHash {
+    fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &CF) -> SSRes<'a> {
         let mut i2 = it.clone();
         match i2.next() {
             Some('r') => {}
             None => {
-                cf.put_item(Item::Symbol, res);
+                cf.mark(Item::Symbol, res, it.index());
                 res.push_str(it.str_to(None));
                 return Ok((i2, None));
             }
@@ -180,7 +239,7 @@ impl SSParser<Highlight> for PRHash {
             match i2.next() {
                 Some('#') => nhashes += 1,
                 Some('"') => {
-                    cf.put_item(Item::Symbol, res);
+                    cf.mark(Item::Symbol, res, it.index());
                     res.push_str(it.str_to(i2.index()));
                     break;
                 }
@@ -191,7 +250,7 @@ impl SSParser<Highlight> for PRHash {
                 }
             }
         }
-        cf.put_item(Item::Quoted, res);
+        cf.mark(Item::Quoted, res, i2.index());
         let raw_start = i2.clone();
         let mut raw_fin = i2.clone();
         'outer: loop {
@@ -208,7 +267,7 @@ impl SSParser<Highlight> for PRHash {
                         }
                     }
                     res.push_str(raw_start.str_to(raw_fin.index()));
-                    cf.put_item(Item::Symbol, res);
+                    cf.mark(Item::Symbol, res, raw_fin.index());
                     res.push_str(raw_fin.str_to(i3.index()));
                     return Ok((i3, None));
                 }

@@ -1,4 +1,7 @@
+use crate::partial::{Item, Lines, ParseMark};
 use crate::str_util::CharStr;
+use std::cell::RefCell;
+use transliterate::parser::*;
 
 use std::ops::{Bound, RangeBounds};
 #[derive(Clone, Debug)]
@@ -135,5 +138,49 @@ impl Cursor {
 
     pub fn get_index(&self) -> usize {
         self.index
+    }
+
+    pub fn item_over(self) -> anyhow::Result<CursorItem> {
+        let pf = PosFinder {
+            origin: self.index,
+            res: RefCell::new(CursorItem {
+                item: Item::Command,
+                start: 0,
+                fin: None,
+            }),
+        };
+        match Lines.ss_convert(&self.s, &pf) {
+            Ok(v) => Ok(pf.res.into_inner()),
+            Err(e) => Err(e.strung().into()),
+        }
+    }
+}
+
+pub struct CursorItem {
+    item: Item,
+    start: usize,
+    fin: Option<usize>,
+}
+
+pub struct PosFinder {
+    origin: usize,
+    res: RefCell<CursorItem>,
+}
+
+impl ParseMark for PosFinder {
+    fn mark(&self, item: Item, _: &mut String, pos: Option<usize>) {
+        match pos {
+            Some(n) if n <= self.origin => {
+                let p = self.res.borrow_mut();
+                p.item = item;
+                p.start = n;
+            }
+            Some(_) | None => {
+                let p = self.res.borrow_mut();
+                if p.fin != None {
+                    p.fin = pos;
+                }
+            }
+        }
     }
 }
