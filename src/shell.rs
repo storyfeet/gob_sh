@@ -1,6 +1,6 @@
 //! Some options for statements to run, or persistent data
 use crate::cursor::Cursor;
-//use crate::partial::Item;
+use crate::partial::Item;
 use crate::Action;
 use bogobble::traits::*;
 use termion::event::Key;
@@ -45,37 +45,42 @@ impl Shell {
     fn tab_complete(&mut self) {
         self.prompt.clear_help();
 
-        ci = match self.prompt.cursor.item_over(){   
-            Ok(ci)=>
-        }
-        
-        let top = match crate::tab_complete::item_at_cursor(self.prompt.cursor.)
-            match crate::partial::Lines.parse_s(c_line) {
-            Ok(t) => t,
+        let ci = match self.prompt.cursor.item_over() {
+            Ok(ci) => ci,
             Err(e) => {
                 self.prompt.message = Some(format!("{}", e));
                 return;
             }
         };
+        let s = ci.on_str(&self.prompt.cursor.s);
 
-        let (tabs, tabr) = match top.find_at_end(c_line, |&i| (i == Item::Arg || i == Item::Path)) {
-            Some(a) => (a.on_str(c_line), a.range()),
-            None => match self.prompt.cursor.is_end() {
-                true => ("", bogobble::partial::ranger::Ranger::InEx(clen, clen)),
-                false => {
-                    self.prompt.message = Some(format!("Could not complete",));
-                    return;
-                }
-            },
+        let complete = match ci.item {
+            Item::String => tab_complete_path(s),
+            Item::Keyword | Item::Ident | Item::Path | Item::Command => {
+                self.prompt.message = Some(format!(
+                    "Should be able to complete {:?} :'{}'",
+                    ci.item,
+                    ci.on_str(&self.prompt.cursor.s)
+                ));
+                return;
+            }
+            _ => {
+                self.prompt.message = Some(format!(
+                    "Could not complete {:?} :'{}'",
+                    ci.item,
+                    ci.on_str(&self.prompt.cursor.s)
+                ));
+                return;
+            }
         };
 
-        match crate::tab_complete::tab_complete_path(tabs) {
-            Complete::None => self.prompt.message = Some(format!("Could not complete '{}'", tabs)),
+        match complete {
+            Complete::None => self.prompt.message = Some(format!("Could not complete '{}'", s)),
             Complete::One(tc) => {
-                self.prompt.cursor.replace_range(tabr.with_end(clen), &tc);
+                self.prompt.cursor.replace_range(ci.to_ranger(), &tc);
             }
-            Complete::Many(v) => self.prompt.options = Some((tabr.with_end(clen), v)),
-        }*/
+            Complete::Many(v) => self.prompt.options = Some((ci.to_ranger(), v)),
+        }
     }
 
     pub fn re_highlight(&mut self) {
@@ -200,6 +205,8 @@ impl Shell {
             [27, 91, 49, 59, 53, 65] => self.prompt.do_print(rt, Prompt::up),
             //Ctrl End
             [27, 91, 49, 59, 53, 70] => self.prompt.do_cursor(rt, Cursor::to_end),
+            //Ctrl Down:
+            [27, 91, 49, 59, 53, 66] => self.prompt.do_print(rt, Prompt::down),
             c => self.prompt.do_print(rt, |p| {
                 p.message = Some(format!("Unsupported Action {:?}", c))
             }),

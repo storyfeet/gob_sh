@@ -1,5 +1,6 @@
 use crate::partial::{Item, Lines, ParseMark};
 use crate::str_util::CharStr;
+use bogobble::partial::ranger::Ranger;
 use std::cell::RefCell;
 use transliterate::parser::*;
 
@@ -47,7 +48,7 @@ impl Cursor {
     pub fn up(&mut self) -> bool {
         let this_start = match self.s.prev_match('\n', self.index) {
             Some(n) => n,
-            None => return false,
+            None => return self.s.contains("\n"),
         };
         let prev_start = self.s.prev_match('\n', this_start).unwrap_or(0);
         let df = self.s.count_between(this_start, self.index).unwrap_or(1);
@@ -60,12 +61,13 @@ impl Cursor {
     pub fn down(&mut self) -> bool {
         let next_start = match self.s.next_match('\n', self.index) {
             Some(n) => n,
-            None => return false,
+            None => return self.s.contains("\n"),
         };
         let this_start = self.s.prev_match('\n', self.index).unwrap_or(0);
         let df = self.s.count_between(this_start, self.index).unwrap_or(1);
-        if let Some(n) = self.s.char_right_n_match(next_start, df, '\n') {
-            self.index = n;
+        match self.s.char_right_n_match(next_start, df, '\n') {
+            Some(n) => self.index = n,
+            None => self.index = self.s.len(),
         }
         true
     }
@@ -140,7 +142,7 @@ impl Cursor {
         self.index
     }
 
-    pub fn item_over(self) -> anyhow::Result<CursorItem> {
+    pub fn item_over(&self) -> anyhow::Result<CursorItem> {
         let pf = PosFinder {
             origin: self.index,
             res: RefCell::new(CursorItem {
@@ -150,16 +152,31 @@ impl Cursor {
             }),
         };
         match Lines.ss_convert(&self.s, &pf) {
-            Ok(v) => Ok(pf.res.into_inner()),
+            Ok(_) => Ok(pf.res.into_inner()),
             Err(e) => Err(e.strung().into()),
         }
     }
 }
 
 pub struct CursorItem {
-    item: Item,
-    start: usize,
-    fin: Option<usize>,
+    pub item: Item,
+    pub start: usize,
+    pub fin: Option<usize>,
+}
+
+impl CursorItem {
+    pub fn on_str<'a>(&self, s: &'a str) -> &'a str {
+        match &self.fin {
+            Some(n) => &s[self.start..*n],
+            _ => &s[self.start..],
+        }
+    }
+    pub fn to_ranger(&self) -> Ranger {
+        match self.fin {
+            Some(n) => Ranger::InEx(self.start, n),
+            None => Ranger::InOpen(self.start),
+        }
+    }
 }
 
 pub struct PosFinder {
@@ -170,14 +187,14 @@ pub struct PosFinder {
 impl ParseMark for PosFinder {
     fn mark(&self, item: Item, _: &mut String, pos: Option<usize>) {
         match pos {
-            Some(n) if n <= self.origin => {
-                let p = self.res.borrow_mut();
+            Some(n) if n < self.origin => {
+                let mut p = self.res.borrow_mut();
                 p.item = item;
                 p.start = n;
             }
             Some(_) | None => {
-                let p = self.res.borrow_mut();
-                if p.fin != None {
+                let mut p = self.res.borrow_mut();
+                if p.fin == None {
                     p.fin = pos;
                 }
             }

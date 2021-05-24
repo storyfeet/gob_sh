@@ -12,6 +12,7 @@ pub trait ParseMark {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Item {
+    WS,
     Keyword,
     Symbol,
     Ident,
@@ -45,6 +46,7 @@ impl Item {
             Item::String => "string",
             Item::Quoted => "quoted",
             Item::Expr => "expr",
+            Item::WS => "ws",
         }
     }
 }
@@ -61,6 +63,7 @@ impl Display for Item {
             Item::Lit => write!(f, "{}", color::Fg(color::LightYellow)),
             Item::Esc => write!(f, "{}", color::Fg(color::LightBlue)),
             Item::Comment => write!(f, "{}", color::Fg(color::LightBlue)),
+            Item::WS => Ok(()),
             _ => write!(f, "{}", color::Fg(color::Reset)),
         }
     }
@@ -78,9 +81,8 @@ pub struct ItemWrap<P> {
 }
 
 impl<CF: ParseMark, P: SSParser<CF>> SSParser<CF> for ItemWrap<P> {
-    //TODO allow partials
     fn ss_parse<'a>(&self, it: &PIter<'a>, res: &mut String, cf: &CF) -> SSRes<'a> {
-        (self.item, WS, BRP(&self.p), WS).ss_parse(it, res, cf)
+        (Ws, self.item, BRP(&self.p), Ws).ss_parse(it, res, cf)
     }
 }
 
@@ -91,18 +93,23 @@ fn kw(s: &'static str) -> ItemWrap<PKeyWord> {
     }
 }
 
-ss_parser! { WN:ParseMark,
-    " \n\t\r".star()
+ss_parser! { Wn:ParseMark,
+    (Item::WS," \n\t\r".star())
+}
+
+ss_parser! {Ws:ParseMark,
+    (Item::WS," \t".star())
 }
 
 ss_parser! {End:ParseMark,
-    pl!(WS,ss_or!("\n;".one(),EOI))
+    pl!(Ws,ss_or!("\n;".one(),EOI))
 }
 
 ss_parser! {Empties:ParseMark,
-    PStar(ss_or!((" \n\t\r;").plus(),
+    PStar(ss_or!(
+            (" \n\t\r;").plus(),
             ("#",not("\n;").plus()),
-        ))
+    ))
 }
 
 ss_parser! {ExChannel:ParseMark,
@@ -118,42 +125,42 @@ ss_parser! {FullStatement:ParseMark,
 }
 
 ss_parser! {Id:ParseMark,
-    (WS,Item::Ident,common::Ident,WS)
+    (Ws,Item::Ident,common::Ident,Ws)
 }
 
 ss_parser! {Idents:ParseMark,
-    (Item::Ident, PPlus(WS__(common::Ident))),
+    (Item::Ident, PPlus((Ws,common::Ident,Ws))),
 }
 
 ss_parser! { Statement:ParseMark,
     ss_or!(
-        pl!(kw("let"), Idents,WS,Item::Symbol,"=",ArgsS),
-        pl!(kw("export"), Idents,WS,Item::Symbol,"=",ArgsS),
-        pl!(kw("cd"),WS,ArgsS),
+        pl!(kw("let"), Idents,Ws,Item::Symbol,"=",ArgsS),
+        pl!(kw("export"), Idents,Ws,Item::Symbol,"=",ArgsS),
+        pl!(kw("cd"),Ws,ArgsS),
         pl!(kw("for"),PlusUntil(Id,kw("in")),ArgsP,Block),
-        pl!(kw("if"),WS,ExprRight,Block,Maybe((WN,kw("else"),Block))),
+        pl!(kw("if"),Ws,ExprRight,Block,Maybe((Wn,kw("else"),Block))),
         pl!(kw("disown"),PExec),
-        pl!(Item::Symbol,". ",WS,Item::Command, Path),
+        pl!(Item::Symbol,". ",Ws,Item::Command, Path),
         pl!(FailOn(KeyWord(ss_or!("for","export","cd","let","if","else","disown"))),
         ExprRight)
     )
 }
 
 ss_parser! {Block:ParseMark,
-    pl!(WN,Item::Symbol, "{" ,PStarUntil(pl!(WN,FullStatement,WN),(Item::Symbol,"}")))
+    pl!(Wn,Item::Symbol, "{" ,PStarUntil(pl!(Wn,FullStatement,Wn),(Item::Symbol,"}")))
 }
 
 ss_parser! {ExprLeft:ParseMark,
-    pl!(PExec,Maybe((Item::Symbol,">",Maybe(">"),WS,ArgP)))
+    pl!(PExec,Maybe((Item::Symbol,">",Maybe(">"),Ws,ArgP)))
     //p_list!((Item::Expr) PExec,ws_(pMaybe(p_list!((Item::Command) ExChannel,sym(">"),Maybe(sym(">"),Item::Symbol),ws_(ArgP)),Item::Command)))
 }
 
 ss_parser! {ExprRight:ParseMark,
-    pl!(ExprLeft,Maybe((WS,Item::Symbol,ss_or!("&&","||"),(WN,ExprRight))))
+    pl!(ExprLeft,Maybe((Ws,Item::Symbol,ss_or!("&&","||"),(Wn,ExprRight))))
 }
 
 ss_parser! {ExTarget:ParseMark,
-    (Item::Symbol,"|",WS,PExec)
+    (Item::Symbol,"|",Ws,PExec)
 }
 
 ss_parser! {PConnection:ParseMark,
@@ -165,14 +172,14 @@ ss_parser! {Path:ParseMark,
 }
 
 ss_parser! {PExec:ParseMark,
-    pl!( Item::Command, Path, ArgsS,Maybe(WS_(PConnection)))
+    pl!( Item::Command, Path, ArgsS,Maybe((Ws,PConnection)))
 }
 
 ss_parser! {ArgsS :ParseMark,
-    PStar((WS,ArgP))
+    PStar((Ws,ArgP))
 }
 ss_parser! {ArgsP :ParseMark,
-    PPlus((WS,Item::Arg,ArgP))
+    PPlus((Ws,Item::Arg,ArgP))
 }
 
 ss_parser! { QuotedLitString:ParseMark,
@@ -191,9 +198,9 @@ ss_parser! { LitString:ParseMark,
 
 ss_parser! {StringPart:ParseMark,
     ss_or!(
-        pl!(Item::Symbol, "$[",WS,PExec,WS,Item::Symbol,"]"),
-        pl!(Item::Symbol, "$(",WS,PExec,WS,Item::Symbol,")"),
-        pl!(Item::Var, "${",WS,(Alpha,NumDigit,"_").plus(),WS,"}"),
+        pl!(Item::Symbol, "$[",Ws,PExec,Ws,Item::Symbol,"]"),
+        pl!(Item::Symbol, "$(",Ws,PExec,Ws,Item::Symbol,")"),
+        pl!(Item::Var, "${",Ws,(Alpha,NumDigit,"_").plus(),Ws,"}"),
         pl!(Item::Var, "$",(Alpha,NumDigit,"_").plus()),
         (Item::String,LitString),
     )
@@ -201,10 +208,10 @@ ss_parser! {StringPart:ParseMark,
 
 ss_parser! {QuotedStringPart:ParseMark,
     ss_or!(
-        pl!(Item::Symbol,Item::Symbol,"$[",WS,PExec,WS,Item::Symbol,"]"),
-        pl!(Item::Symbol, Item::Symbol,"$(",WS,PExec,WS,Item::Symbol,")"),
-        pl!(Item::Var, "${",WS__((Alpha,NumDigit,"_").plus()),"}"),
-        pl!(Item::Var,"$",(Alpha,NumDigit,"_").plus()),
+        pl!(Item::Symbol,Item::Symbol,"$[",Ws,PExec,Ws,Item::Symbol,"]"),
+        pl!(Item::Symbol, Item::Symbol,"$(",Ws,PExec,Ws,Item::Symbol,")"),
+        pl!(Item::Symbol, "${",Ws,Item::Var,(Alpha,NumDigit,"_").plus(),"}"),
+        pl!(Item::Symbol,"$",(Alpha,NumDigit,"_").plus()),
         (Item::String,QuotedLitString),
     )
 }
