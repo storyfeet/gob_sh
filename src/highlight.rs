@@ -1,5 +1,6 @@
+//use crate::parser::Letter;
 use crate::partial::*;
-use bogobble::common::*;
+//use bogobble::common::*;
 use bogobble::*;
 use std::collections::BTreeMap;
 use std::fmt::Write;
@@ -40,5 +41,5 @@ parser! { (HList->Vec<(String,&'a str)>)
     sep_star(HItem,",")
 }
 parser! {(HItem->(String,&'a str))
-    (Ident,":",not(",").star()).map(|(a,_,b)|(a,b))
+    (common::Ident,":",not(",").star()).map(|(a,_,b)|(a,b))
 }

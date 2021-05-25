@@ -1,5 +1,7 @@
+use crate::parser::{Letter, LetterNum};
 use bogobble::partial::*;
 use bogobble::*;
+
 use std::fmt::{self, Debug, Display};
 use termion::*;
 use transliterate::bo_part::*;
@@ -93,6 +95,9 @@ fn kw(s: &'static str) -> ItemWrap<PKeyWord> {
     }
 }
 
+ss_parser! { Ident : ParseMark,
+    (Letter.one(),LetterNum.star())
+}
 ss_parser! { Wn:ParseMark,
     (Item::WS," \n\t\r".star())
 }
@@ -125,11 +130,11 @@ ss_parser! {FullStatement:ParseMark,
 }
 
 ss_parser! {Id:ParseMark,
-    (Ws,Item::Ident,common::Ident,Ws)
+    (Ws,Item::Ident,Ident,Ws)
 }
 
 ss_parser! {Idents:ParseMark,
-    (Item::Ident, PPlus((Ws,common::Ident,Ws))),
+    (Item::Ident, PPlus((Ws,Ident,Ws))),
 }
 
 ss_parser! { Statement:ParseMark,
@@ -168,7 +173,7 @@ ss_parser! {PConnection:ParseMark,
 }
 
 ss_parser! {Path:ParseMark,
-    pl!(Maybe("~"),PPlus(ss_or!("\\ ",("/._-",Alpha,NumDigit).plus())))
+    pl!(Maybe("~"),PPlus(ss_or!("\\ ",("/",LetterNum).plus())))
 }
 
 ss_parser! {PExec:ParseMark,
@@ -200,8 +205,8 @@ ss_parser! {StringPart:ParseMark,
     ss_or!(
         pl!(Item::Symbol, "$[",Ws,PExec,Ws,Item::Symbol,"]"),
         pl!(Item::Symbol, "$(",Ws,PExec,Ws,Item::Symbol,")"),
-        pl!(Item::Var, "${",Ws,(Alpha,NumDigit,"_").plus(),Ws,"}"),
-        pl!(Item::Var, "$",(Alpha,NumDigit,"_").plus()),
+        pl!(Item::Var, "${",Ws,LetterNum.plus(),Ws,"}"),
+        pl!(Item::Var, "$",LetterNum.plus()),
         (Item::String,LitString),
     )
 }
@@ -210,8 +215,8 @@ ss_parser! {QuotedStringPart:ParseMark,
     ss_or!(
         pl!(Item::Symbol,Item::Symbol,"$[",Ws,PExec,Ws,Item::Symbol,"]"),
         pl!(Item::Symbol, Item::Symbol,"$(",Ws,PExec,Ws,Item::Symbol,")"),
-        pl!(Item::Symbol, "${",Ws,Item::Var,(Alpha,NumDigit,"_").plus(),"}"),
-        pl!(Item::Symbol,"$",(Alpha,NumDigit,"_").plus()),
+        pl!(Item::Symbol, "${",Ws,Item::Var,LetterNum.plus(),"}"),
+        pl!(Item::Symbol,"$",LetterNum.plus()),
         (Item::String,QuotedLitString),
     )
 }

@@ -5,8 +5,24 @@ use crate::expr::Expr;
 use crate::statement::Statement as Stt;
 use bogobble::*;
 
+char_bool! {RuSpecial,
+    "#&$|^{}()[]\\\" \n\t<>;"
+}
+
+char_bool! {Letter,
+    Any.except((RuSpecial,NumDigit))
+}
+
+char_bool! {LetterNum,
+    Any.except(RuSpecial)
+}
+
+parser! {(Ident->String),
+    string((Letter.one(),LetterNum.iplus()))
+}
+
 parser! {(Path->String)
-    string((maybe("~"),plus(or_ig!("\\ ",("/._-",Alpha,NumDigit).iplus()))))
+    string((maybe("~"),plus(or_ig!("\\ ",("/.",LetterNum).iplus()))))
 }
 
 parser! {(End->())
@@ -38,10 +54,10 @@ parser! {(FullStatement->Stt)
 
 parser! {(Statement->Stt)
     or!(
-        (keyword("let"),plus(ws_(common::Ident)),ws_("="),ArgsS).map(|(_,ids,_,args)|Stt::Let(ids,args)),
-        (keyword("export"),plus(ws_(common::Ident)),ws_("="),ArgsS).map(|(_,ids,_,args)|Stt::Export(ids,args)),
+        (keyword("let"),plus(ws_(Ident)),ws_("="),ArgsS).map(|(_,ids,_,args)|Stt::Let(ids,args)),
+        (keyword("export"),plus(ws_(Ident)),ws_("="),ArgsS).map(|(_,ids,_,args)|Stt::Export(ids,args)),
         (keyword("cd"),ws_(ArgP)).map(|(_,a)|Stt::Cd(a)),
-        (keyword("for"),plus_until(ws_(common::Ident),ws_(keyword("in"))),ArgsP,Block).map(|(_,(vars,_),args,block)|Stt::For{vars,args,block}),
+        (keyword("for"),plus_until(ws_(Ident),ws_(keyword("in"))),ArgsP,Block).map(|(_,(vars,_),args,block)|Stt::For{vars,args,block}),
         (keyword("if"),ws_(ExprRight),Block,maybe((wn_(keyword("else")),Block))).map(|(_,expr,block,op)|Stt::If{expr,block,else_:op.map(|(_,a)|a)}),
         (keyword("disown"),ws_(PExec)).map(|(_,e)|Stt::Disown(e)),
         (". ",ws_(Path)).map(|(_,p)|Stt::Dot(p)),
@@ -116,8 +132,8 @@ parser! {(StringPart->Arg)
     or!(
         ("$[",ws__(PExec),"]").map(|(_,e,_)|Arg::ArrCommand(e)),
         ("$(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
-        ("${",ws__(string((Alpha,NumDigit,"_").plus())),"}").map(|(_,s,_)|Arg::Var(s)),
-        ("$",string((Alpha,NumDigit,"_").plus())).map(|(_,s)|Arg::Var(s)),
+        ("${",ws__(string(LetterNum.plus())),"}").map(|(_,s,_)|Arg::Var(s)),
+        ("$",string(LetterNum.plus())).map(|(_,s)|Arg::Var(s)),
         LitString.map(|s|Arg::StringLit(s)),
     )
 }
@@ -126,8 +142,8 @@ parser! {(QuotedStringPart->Arg)
     or!(
         ("$[",ws__(PExec),"]").map(|(_,e,_)|Arg::ArrCommand(e)),
         ("$(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
-        ("${",ws__(string((Alpha,NumDigit,"_").plus())),"}").map(|(_,s,_)|Arg::Var(s)),
-        ("$",string((Alpha,NumDigit,"_").plus())).map(|(_,s)|Arg::Var(s)),
+        ("${",ws__(string(LetterNum.plus())),"}").map(|(_,s,_)|Arg::Var(s)),
+        ("$",string(LetterNum.plus())).map(|(_,s)|Arg::Var(s)),
         QuotedLitString.map(|s|Arg::StringLit(s)),
     )
 }
