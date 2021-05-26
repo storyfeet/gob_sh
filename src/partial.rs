@@ -61,8 +61,8 @@ impl Display for Item {
             Item::Symbol => write!(f, "{}", color::Fg(color::Blue)),
             Item::Var => write!(f, "{}", color::Fg(color::LightMagenta)),
             Item::Ident | Item::Path => write!(f, "{}", color::Fg(color::Reset)),
-            Item::String | Item::Quoted => write!(f, "{}", color::Fg(color::LightGreen)),
-            Item::Lit => write!(f, "{}", color::Fg(color::LightYellow)),
+            Item::String => write!(f, "{}", color::Fg(color::LightGreen)),
+            Item::Lit | Item::Quoted => write!(f, "{}", color::Fg(color::LightYellow)),
             Item::Esc => write!(f, "{}", color::Fg(color::LightBlue)),
             Item::Comment => write!(f, "{}", color::Fg(color::LightBlue)),
             Item::WS => Ok(()),
@@ -137,15 +137,18 @@ ss_parser! {Idents:ParseMark,
     (Item::Ident, PPlus((Ws,Ident,Ws))),
 }
 
+ss_parser! { Builtin:ParseMark,
+    ss_or!(kw("cd"),kw("load"))
+}
+
 ss_parser! { Statement:ParseMark,
     ss_or!(
         pl!(kw("let"), Idents,Ws,Item::Symbol,"=",ArgsS),
         pl!(kw("export"), Idents,Ws,Item::Symbol,"=",ArgsS),
-        pl!(kw("cd"),Ws,ArgsS),
         pl!(kw("for"),PlusUntil(Id,kw("in")),ArgsP,Block),
         pl!(kw("if"),Ws,ExprRight,Block,Maybe((Wn,kw("else"),Block))),
         pl!(kw("disown"),PExec),
-        pl!(Item::Symbol,". ",Ws,Item::Command, Path),
+        pl!(Builtin,ArgsS),
         pl!(FailOn(KeyWord(ss_or!("for","export","cd","let","if","else","disown"))),
         ExprRight)
     )

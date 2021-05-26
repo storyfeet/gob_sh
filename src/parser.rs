@@ -6,7 +6,7 @@ use crate::statement::Statement as Stt;
 use bogobble::*;
 
 char_bool! {RuSpecial,
-    "#&$|^{}()[]\\\" \n\t<>;"
+    "=#&$|^{}()[]\\\" \n\t<>;"
 }
 
 char_bool! {Letter,
@@ -18,11 +18,15 @@ char_bool! {LetterNum,
 }
 
 parser! {(Ident->String),
-    string((Letter.one(),LetterNum.iplus()))
+    string((Letter.one(),LetterNum.istar()))
 }
 
 parser! {(Path->String)
     string((maybe("~"),plus(or_ig!("\\ ",("/.",LetterNum).iplus()))))
+}
+
+parser! {(Builtin->&'static str)
+    or!("cd","load")
 }
 
 parser! {(End->())
@@ -56,12 +60,13 @@ parser! {(Statement->Stt)
     or!(
         (keyword("let"),plus(ws_(Ident)),ws_("="),ArgsS).map(|(_,ids,_,args)|Stt::Let(ids,args)),
         (keyword("export"),plus(ws_(Ident)),ws_("="),ArgsS).map(|(_,ids,_,args)|Stt::Export(ids,args)),
-        (keyword("cd"),ws_(ArgP)).map(|(_,a)|Stt::Cd(a)),
+ //       (keyword("cd"),ws_(ArgP)).map(|(_,a)|Stt::Cd(a)),
         (keyword("for"),plus_until(ws_(Ident),ws_(keyword("in"))),ArgsP,Block).map(|(_,(vars,_),args,block)|Stt::For{vars,args,block}),
         (keyword("if"),ws_(ExprRight),Block,maybe((wn_(keyword("else")),Block))).map(|(_,expr,block,op)|Stt::If{expr,block,else_:op.map(|(_,a)|a)}),
         (keyword("disown"),ws_(PExec)).map(|(_,e)|Stt::Disown(e)),
-        (". ",ws_(Path)).map(|(_,p)|Stt::Dot(p)),
-        (fail_on(keyword(or!("for","export","cd","let","if","else","disown"))),
+        (keyword(Builtin),ws_(ArgsS)).map(|(c,a)|Stt::Builtin(c,a)),
+//        (". ",ws_(ArgsS)).map(|(_,p)|Stt::Dot(p)),
+        (fail_on(keyword(or!("for","export","let","if","else","disown",Builtin))),
         ExprRight).map(|(_,e)|Stt::Expr(e)),
     )
 }

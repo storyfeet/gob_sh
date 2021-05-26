@@ -55,8 +55,8 @@ impl Shell {
         let s = ci.on_str(&self.prompt.cursor.s);
 
         let complete = match ci.item {
-            Item::String => tab_complete_path(s),
-            Item::Keyword | Item::Ident | Item::Path | Item::Command => {
+            Item::String | Item::Arg | Item::Path => tab_complete_path(s),
+            Item::Keyword | Item::Ident | Item::Command => {
                 self.prompt.message = Some(format!(
                     "Should be able to complete {:?} :'{}'",
                     ci.item,

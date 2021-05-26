@@ -5,6 +5,7 @@ use crate::store::Store;
 use err_tools::*;
 use std::process::Stdio;
 
+#[derive(Debug)]
 pub enum Expr {
     Exec(Exec),
     Write {

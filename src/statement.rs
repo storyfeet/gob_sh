@@ -1,4 +1,4 @@
-use crate::args::{Arg, Args};
+use crate::args::Args;
 use crate::exec::Exec;
 use crate::expr::Expr;
 use crate::store::{Data, Store};
@@ -8,7 +8,6 @@ pub enum Statement {
     Expr(Expr),
     Let(Vec<String>, Args),
     Export(Vec<String>, Args),
-    Cd(Arg),
     For {
         vars: Vec<String>,
         args: Args,
@@ -20,13 +19,16 @@ pub enum Statement {
         else_: Option<Vec<Statement>>,
     },
     Disown(Exec),
-    Dot(String),
+    Builtin(&'static str, Args),
 }
 
 impl Statement {
     pub fn run(&self, s: &mut Store) -> anyhow::Result<bool> {
         match self {
-            Statement::Expr(e) => e.run(s),
+            Statement::Expr(e) => {
+                //println!("Running Expr:{:?}", e);
+                e.run(s)
+            }
             Statement::Let(names, args) => {
                 let ag = args.run(s)?;
                 if ag.len() < names.len() {
@@ -46,22 +48,6 @@ impl Statement {
                     std::env::set_var(k.to_string(), ag[n].to_string());
                     //                    s.set(k.to_string(), Data::Str(ag[n].clone()))
                 }
-                Ok(true)
-            }
-            Statement::Cd(arg) => {
-                let mut run_res = arg.run(s)?.to_string();
-                if let Some('~') = run_res.chars().next() {
-                    let hm = std::env::var("HOME")?;
-                    run_res = run_res.replace('~', &hm);
-                }
-
-                let s2 = glob::glob(&run_res)?
-                    .next()
-                    .e_str("Could not glob arg for cd")??;
-
-                std::env::set_current_dir(s2)?;
-
-                std::env::set_var("PWD", std::env::current_dir()?);
                 Ok(true)
             }
             Statement::For { vars, args, block } => {
@@ -100,7 +86,43 @@ impl Statement {
                 println!("PID = {}", id);
                 Ok(true)
             }
-            Statement::Dot(p) => crate::run_file(p, s),
+            Statement::Builtin("cd", args) => {
+                let mut run_res = match args.run(s)?.get(0) {
+                    Some(v) => v.to_string(),
+                    None => {
+                        let hm = std::env::var("HOME")?;
+                        std::env::set_current_dir(hm)?;
+                        std::env::set_var("PWD", std::env::current_dir()?);
+                        return Ok(true);
+                    }
+                };
+                if let Some('~') = run_res.chars().next() {
+                    let hm = std::env::var("HOME")?;
+                    run_res = run_res.replace('~', &hm);
+                }
+
+                let s2 = glob::glob(&run_res)?
+                    .next()
+                    .e_str("Could not glob arg for cd")??;
+
+                std::env::set_current_dir(s2)?;
+
+                std::env::set_var("PWD", std::env::current_dir()?);
+                Ok(true)
+            }
+            Statement::Builtin("load", args) => {
+                //println!("Running builtin '.'");
+                let ag = args.run(s)?;
+                for a in ag {
+                    println!("Loading {}", a);
+                    crate::run_file(a, s)?;
+                }
+                Ok(true)
+            }
+            Statement::Builtin(b, _) => {
+                println!("Builtin doesn't exist : '{}'", b);
+                Ok(true)
+            }
         }
     }
 }

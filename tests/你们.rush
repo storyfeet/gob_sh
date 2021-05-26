@@ -1,0 +1,3 @@
+let 你= you
+echo 你是 $你
+
