@@ -260,6 +260,11 @@ impl<CF: ParseMark> SSParser<CF> for PRHash {
                 }
                 Some(_) => return Err(i2.err_s("RawString")),
                 None => {
+                    match nhashes {
+                        0 => cf.mark(Item::String, res, it.index()),
+                        _ => cf.mark(Item::Symbol, res, it.index()),
+                    }
+
                     res.push_str(it.str_to(i2.index()));
                     return Ok((i2, None));
                 }
