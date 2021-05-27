@@ -63,8 +63,11 @@ impl Prompt {
     }
 
     pub fn set_guesses(&mut self, v: Vec<String>) {
+        let go_up = v.len() > 0;
         self.guess_man.set_guesses(v);
-        self.up();
+        if go_up {
+            self.up();
+        }
     }
 
     pub fn up(&mut self) {
