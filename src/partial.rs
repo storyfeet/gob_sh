@@ -220,7 +220,7 @@ ss_parser! {QuotedStringPart:ParseMark,
         pl!(Item::Symbol, Item::Symbol,"$(",Ws,PExec,Ws,Item::Symbol,")"),
         pl!(Item::Symbol, "${",Ws,Item::Var,LetterNum.plus(),"}"),
         pl!(Item::Symbol,"$",LetterNum.plus()),
-        (Item::String,QuotedLitString),
+        (Item::Quoted,QuotedLitString),
     )
 }
 
