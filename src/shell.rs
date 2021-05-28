@@ -56,7 +56,8 @@ impl Shell {
 
         let complete = match ci.item {
             Item::String | Item::Arg | Item::Path => tab_complete_path(s),
-            Item::Keyword | Item::Ident | Item::Command => {
+            Item::Keyword | Item::Command => tab_complete_prog(s),
+            Item::Ident => {
                 self.prompt.message = Some(format!(
                     "Should be able to complete {:?} :'{}'",
                     ci.item,
@@ -74,13 +75,21 @@ impl Shell {
             }
         };
 
-        match complete {
+        match complete.len() {
+            0 => self.prompt.message = Some(format!("Could not complete '{}'", s)),
+            1 => self
+                .prompt
+                .cursor
+                .replace_range(ci.to_ranger(), &complete[0]),
+            _ => self.prompt.options = Some((ci.to_ranger(), complete)),
+        }
+        /*match complete {
             Complete::None => self.prompt.message = Some(format!("Could not complete '{}'", s)),
             Complete::One(tc) => {
                 self.prompt.cursor.replace_range(ci.to_ranger(), &tc);
             }
             Complete::Many(v) => self.prompt.options = Some((ci.to_ranger(), v)),
-        }
+        }*/
     }
 
     pub fn re_highlight(&mut self) {

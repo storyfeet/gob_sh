@@ -1,15 +1,10 @@
 use crate::str_util;
 use chrono::*;
 use ru_history::HistoryStore;
+use std::collections::BTreeSet;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
-
-pub enum Complete {
-    One(String),
-    Many(Vec<String>),
-    None,
-}
 
 fn dir_slash(p: &Path, td: Option<&String>) -> String {
     let mut s = p
@@ -41,7 +36,48 @@ pub fn all_strs_agree<I: Iterator<Item = S>, S: AsRef<str>>(
     Some(res[..max].to_string())
 }
 
-pub fn tab_complete_path(src: &str) -> Complete {
+pub fn tab_complete_prog(s: &str) -> Vec<String> {
+    let list: Vec<String> = prog_matches(s).into_iter().collect();
+    list
+}
+
+pub fn prog_matches(s: &str) -> BTreeSet<String> {
+    let mut res = BTreeSet::new();
+    let v = std::env::var("PATH").unwrap_or("".to_string());
+    for a in v.split(":") {
+        folder_prog_matches(a, s, &mut res);
+    }
+    res
+}
+
+fn folder_prog_matches<P: AsRef<Path>>(folder: P, s: &str, v: &mut BTreeSet<String>) {
+    let entries = match std::fs::read_dir(folder.as_ref()) {
+        Ok(dirs) => dirs,
+        _ => return,
+    };
+    for e in entries {
+        match e {
+            Ok(entry) => {
+                let ft = match entry.file_type() {
+                    Ok(f) => f,
+                    _ => continue,
+                };
+                if ft.is_dir() {
+                    //                folder_prog_matches(entry.path(), s, v);
+                } else {
+                    let fname = entry.file_name();
+                    let fstr = fname.to_string_lossy();
+                    if fstr.starts_with(s) {
+                        v.insert(fstr.to_string());
+                    }
+                }
+            }
+            _ => continue, // If an issue, carry on
+        }
+    }
+}
+
+pub fn tab_complete_path(src: &str) -> Vec<String> {
     let (s, hd) = match src.starts_with("~") {
         true => {
             let hd = std::env::var("HOME").unwrap_or("".to_string());
@@ -51,10 +87,20 @@ pub fn tab_complete_path(src: &str) -> Complete {
     };
     let sg = format!("{}{}", s.replace("\\ ", " ").trim_end_matches("*"), "*");
     let g = glob::glob(&sg)
-        .map(|m| m.filter_map(|a| a.ok()).collect())
+        .map(|m| {
+            m.filter_map(|a| a.ok())
+                .map(|d| dir_slash(&d, hd.as_ref()))
+                .collect()
+        })
         .unwrap_or(Vec::new());
-    match g.len() {
-        0 => return Complete::None,
+    if g.len() > 0 {
+        if let Some(s) = all_strs_agree(g.iter(), s.len()) {
+            return vec![s];
+        }
+    }
+    g
+    /*match g.len() {
+        0 => return v,
         1 => {
             let tg = &g[0];
             Complete::One(dir_slash(tg, hd.as_ref()))
@@ -66,7 +112,7 @@ pub fn tab_complete_path(src: &str) -> Complete {
                 None => Complete::Many(v),
             }
         }
-    }
+    }*/
 }
 
 fn history_path() -> PathBuf {

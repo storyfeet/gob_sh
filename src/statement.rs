@@ -119,6 +119,16 @@ impl Statement {
                 }
                 Ok(true)
             }
+            Statement::Builtin("proglist", args) => {
+                let ag = args.run(s)?;
+                for a in ag {
+                    let matches = crate::tab_complete::prog_matches(&a);
+                    for m in matches {
+                        println!("--{}", m);
+                    }
+                }
+                Ok(true)
+            }
             Statement::Builtin(b, _) => {
                 println!("Builtin doesn't exist : '{}'", b);
                 Ok(true)

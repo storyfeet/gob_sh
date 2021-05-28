@@ -26,7 +26,7 @@ parser! {(Path->String)
 }
 
 parser! {(Builtin->&'static str)
-    or!("cd","load")
+    or!("cd","load","proglist")
 }
 
 parser! {(End->())
