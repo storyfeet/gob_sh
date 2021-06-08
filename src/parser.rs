@@ -62,7 +62,7 @@ parser! {(FullStatement->Stt)
 
 parser! {(Statement->Stt)
     or!(
-        (keyword(Assigner),plus(ws_(Ident)),ws_("="),ArgsS).map(|(_,ids,_,args)|Stt::Let(ids,args)),
+        (keyword(Assigner),plus(ws_(Ident)),ws_("="),ArgsS).map(|(mode,ids,_,args)|Stt::Assign(mode,ids,args)),
         (keyword("for"),plus_until(ws_(Ident),ws_(keyword("in"))),ArgsP,Block).map(|(_,(vars,_),args,block)|Stt::For{vars,args,block}),
         (keyword("if"),ws_(ExprRight),Block,maybe((wn_(keyword("else")),Block))).map(|(_,expr,block,op)|Stt::If{expr,block,else_:op.map(|(_,a)|a)}),
         (keyword("disown"),ws_(PExec)).map(|(_,e)|Stt::Disown(e)),
@@ -165,6 +165,8 @@ parser! {(QuotedString->Arg)
 
 parser! { (ArgP->Arg)
     or!(
+        ("[",ArgsS,"]").map(|(_,a,_)|Arg::List(a)),
+        (ws__("{"),sep_until_ig((Ident,ws__("="),ArgP).map(|(k,_,v)|(k,v)),ws__(";"),ws__("}"))).map(|(_,s)|Arg::Map(s)),
         ("~",keyword(maybe(LitString))).map(|(_,s)|Arg::HomePath(s.unwrap_or(String::new()))),
         ("~",plus(StringPart)).map(|(_,v)| Arg::HomeExpr(v)),
         r_hash.map(|s|Arg::RawString(s) ) ,

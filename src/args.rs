@@ -1,28 +1,29 @@
 use crate::exec::Exec;
 use crate::store::{Data, Store};
 use err_tools::*;
+use std::collections::BTreeMap;
 use std::io::Read;
 use std::process::Stdio;
 
 #[derive(Clone, Debug)]
 pub struct Args(pub Vec<Arg>);
 
-fn try_glob(s: &str, args: &mut Vec<String>) {
+fn try_glob<F: FnMut(String)>(s: &str, mut push: F) {
     match glob::glob(s) {
         Ok(v) => {
             let mut found = false;
             for a in v {
                 found = true;
                 if let Ok(val) = a {
-                    args.push(val.display().to_string());
+                    push(val.display().to_string());
                 }
             }
             if !found {
-                args.push(s.to_string());
+                push(s.to_string());
             }
         }
         Err(_) => {
-            args.push(s.to_string());
+            push(s.to_string());
         }
     }
 }
@@ -33,7 +34,7 @@ impl Args {
         for a in &self.0 {
             match a.run(sets)? {
                 Data::RawStr(s) => res.push(s),
-                Data::Str(s) => try_glob(&s, &mut res),
+                Data::Str(s) => try_glob(&s, |d| res.push(d)),
                 Data::List(l) => {
                     for v in l {
                         res.push(v.to_string());
@@ -59,8 +60,8 @@ pub enum Arg {
     RawString(String),
     StringLit(String),
     HomePath(String),
-    HomeExpr(Args),
-    StringExpr(Args),
+    HomeExpr(Vec<Arg>),
+    StringExpr(Vec<Arg>),
     Var(String),
     List(Args),
     Map(Vec<(String, Arg)>),
@@ -75,14 +76,14 @@ impl Arg {
             Arg::StringLit(s) => Ok(Data::Str(s.to_string())),
             Arg::StringExpr(v) => {
                 let mut s = String::new();
-                for a in v.0 {
+                for a in v {
                     s.push_str(&a.run(sets)?.to_string());
                 }
                 Ok(Data::Str(s.to_string()))
             }
             Arg::HomeExpr(v) => {
                 let mut hp = std::env::var("HOME").unwrap_or(String::new());
-                for a in v.0 {
+                for a in v {
                     hp.push_str(&a.run(sets)?.to_string());
                 }
                 Ok(Data::Str(hp))
@@ -120,8 +121,22 @@ impl Arg {
                 Ok(Data::List(v))
             }
             Arg::List(l) => {
-                let ch = l.run_data(sets)?;
-                Ok(Data::List(ch))
+                let mut res = Vec::new();
+                for c in l.run_data(sets)? {
+                    match c {
+                        Data::Str(s) => try_glob(&s, |d| res.push(Data::Str(d))),
+                        o => res.push(o),
+                    }
+                }
+
+                Ok(Data::List(res))
+            }
+            Arg::Map(mp) => {
+                let mut res = BTreeMap::new();
+                for (k, v) in mp {
+                    res.insert(k.to_string(), v.run(sets)?);
+                }
+                Ok(Data::Map(res))
             }
         }
     }

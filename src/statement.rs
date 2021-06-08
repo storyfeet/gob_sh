@@ -6,8 +6,7 @@ use err_tools::*;
 
 pub enum Statement {
     Expr(Expr),
-    Let(Vec<String>, Args),
-    Export(Vec<String>, Args),
+    Assign(&'static str, Vec<String>, Args),
     For {
         vars: Vec<String>,
         args: Args,
@@ -29,17 +28,17 @@ impl Statement {
                 //println!("Running Expr:{:?}", e);
                 e.run(s)
             }
-            Statement::Let(names, args) => {
-                let ag = args.run(s)?;
+            Statement::Assign("let", names, args) => {
+                let ag = args.run_data(s)?;
                 if ag.len() < names.len() {
                     return e_str("Not enough results for var names");
                 }
                 for (n, k) in names.iter().enumerate() {
-                    s.set(k.to_string(), Data::Str(ag[n].clone()))
+                    s.set(k.to_string(), ag[n].clone())
                 }
                 Ok(true)
             }
-            Statement::Export(names, args) => {
+            Statement::Assign("export", names, args) => {
                 let ag = args.run(s)?;
                 if ag.len() < names.len() {
                     return e_str("Not enough results for var names");
@@ -48,6 +47,10 @@ impl Statement {
                     std::env::set_var(k.to_string(), ag[n].to_string());
                     //                    s.set(k.to_string(), Data::Str(ag[n].clone()))
                 }
+                Ok(true)
+            }
+            Statement::Assign(a, _, _) => {
+                println!("Assigner doesn't exist : '{}'", a);
                 Ok(true)
             }
             Statement::For { vars, args, block } => {
