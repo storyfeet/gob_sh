@@ -44,6 +44,14 @@ impl Args {
         }
         Ok(res)
     }
+
+    pub fn run_data(&self, sets: &mut Store) -> anyhow::Result<Vec<Data>> {
+        let mut res = Vec::new();
+        for a in &self.0 {
+            res.push(a.run(sets)?);
+        }
+        Ok(res)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -51,9 +59,11 @@ pub enum Arg {
     RawString(String),
     StringLit(String),
     HomePath(String),
-    HomeExpr(Vec<Arg>),
-    StringExpr(Vec<Arg>),
+    HomeExpr(Args),
+    StringExpr(Args),
     Var(String),
+    List(Args),
+    Map(Vec<(String, Arg)>),
     Command(Exec),
     ArrCommand(Exec),
 }
@@ -65,14 +75,14 @@ impl Arg {
             Arg::StringLit(s) => Ok(Data::Str(s.to_string())),
             Arg::StringExpr(v) => {
                 let mut s = String::new();
-                for a in v {
+                for a in v.0 {
                     s.push_str(&a.run(sets)?.to_string());
                 }
                 Ok(Data::Str(s.to_string()))
             }
             Arg::HomeExpr(v) => {
                 let mut hp = std::env::var("HOME").unwrap_or(String::new());
-                for a in v {
+                for a in v.0 {
                     hp.push_str(&a.run(sets)?.to_string());
                 }
                 Ok(Data::Str(hp))
@@ -108,6 +118,10 @@ impl Arg {
                     .collect();
                 //ch.wait(); TODO work out if this is needed
                 Ok(Data::List(v))
+            }
+            Arg::List(l) => {
+                let ch = l.run_data(sets)?;
+                Ok(Data::List(ch))
             }
         }
     }

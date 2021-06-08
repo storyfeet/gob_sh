@@ -12,6 +12,7 @@ pub enum Data {
     Str(String),
     RawStr(String),
     List(Vec<Data>),
+    Map(BTreeMap<String, Data>),
 }
 
 impl Display for Data {
@@ -29,6 +30,16 @@ impl Display for Data {
                     write!(f, "{}", v).ok();
                 }
                 write!(f, "]")
+            }
+            Data::Map(m) => {
+                write!(f, "{{").ok();
+                let mut join = "";
+                for (k, v) in m {
+                    write!(f, "{}{}:{}", join, k, v).ok();
+                    join = ", ";
+                }
+
+                write!(f, "}}")
             }
         }
     }
