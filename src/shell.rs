@@ -9,9 +9,9 @@ use crate::store::Store;
 use crate::tab_complete::*;
 use crate::{parser, prompt::Prompt, RT};
 use ru_history::HistoryStore;
-use std::io::Read;
+//use std::io::Read;
 use std::io::Write;
-use std::path::Path;
+//use std::path::Path;
 
 #[derive(Clone, Debug)]
 pub struct Shell {
@@ -149,17 +149,6 @@ impl Shell {
         };
         self.prompt.reset(pt, rt);
         rt.flush().ok();
-    }
-
-    pub fn source_path<P: AsRef<Path>>(&mut self, p: P) -> anyhow::Result<()> {
-        let mut f = std::fs::File::open(p)?;
-        let mut buf = String::new();
-        f.read_to_string(&mut buf)?;
-        let p = parser::Lines.parse_s(&buf).map_err(|e| e.strung())?;
-        for v in p {
-            v.run(&mut self.store).ok();
-        }
-        Ok(())
     }
 
     pub fn do_key(&mut self, k: Key, rt: &mut RT) -> anyhow::Result<Action> {

@@ -80,7 +80,7 @@ pub fn run_interactive() -> anyhow::Result<()> {
     let mut init = std::path::PathBuf::from(std::env::var("HOME").unwrap_or("".to_string()));
     init.push(".config/rushell/init.rush");
 
-    if let Err(e) = shell.source_path(init) {
+    if let Err(e) = shell.store.source_path(init) {
         println!("Error sourcing home_config : {}", e);
     }
 

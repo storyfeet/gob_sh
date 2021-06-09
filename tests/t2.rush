@@ -1,3 +1,4 @@
 #! /usr/bin/env ru_shell
 export x=HELLO
 export y=$PWD
+let p = Poop

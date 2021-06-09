@@ -114,11 +114,10 @@ impl Statement {
                 Ok(true)
             }
             Statement::Builtin("load", args) => {
-                //println!("Running builtin '.'");
                 let ag = args.run(s)?;
                 for a in ag {
                     println!("Loading {}", a);
-                    crate::run_file(a, s)?;
+                    s.source_path(a)?;
                 }
                 Ok(true)
             }

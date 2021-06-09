@@ -1,5 +1,9 @@
+use crate::parser;
+use bogobble::traits::*;
 use std::collections::BTreeMap;
 use std::fmt::{self, Display};
+use std::io::Read;
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct Store {
@@ -101,5 +105,15 @@ impl Store {
         }
 
         self.let_set(k, v)
+    }
+    pub fn source_path<P: AsRef<Path>>(&mut self, p: P) -> anyhow::Result<()> {
+        let mut f = std::fs::File::open(p)?;
+        let mut buf = String::new();
+        f.read_to_string(&mut buf)?;
+        let p = parser::Lines.parse_s(&buf).map_err(|e| e.strung())?;
+        for v in p {
+            v.run(self).ok();
+        }
+        Ok(())
     }
 }

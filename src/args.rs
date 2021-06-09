@@ -40,6 +40,12 @@ impl Args {
                         res.push(v.to_string());
                     }
                 }
+                Data::Map(m) => {
+                    for (k, v) in m {
+                        res.push(k.to_string());
+                        res.push(v.to_string());
+                    }
+                }
                 v => res.push(v.to_string()),
             }
         }
