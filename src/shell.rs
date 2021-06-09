@@ -142,7 +142,7 @@ impl Shell {
             .unwrap_or(String::from(">>"));
         let pt = match parser::QuotedString.parse_s(&pt) {
             Ok(v) => v
-                .run(&mut self.store)
+                .run(&mut self.store, 1)
                 .map(|s| s.to_string())
                 .unwrap_or("PromptErr:>>".to_string()),
             Err(_) => pt,

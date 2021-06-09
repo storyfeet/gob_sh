@@ -29,34 +29,46 @@ fn try_glob<F: FnMut(String)>(s: &str, mut push: F) {
 }
 
 impl Args {
-    pub fn run(&self, sets: &mut Store) -> anyhow::Result<Vec<String>> {
-        let mut res = Vec::new();
+    pub fn run_push<F: FnMut(Data)>(
+        &self,
+        sets: &mut Store,
+        depth: usize,
+        mut f: F,
+    ) -> anyhow::Result<()> {
+        if depth == 0 {
+            for a in &self.0 {
+                f(a.run(sets, 0)?)
+            }
+            return Ok(());
+        }
         for a in &self.0 {
-            match a.run(sets)? {
-                Data::RawStr(s) => res.push(s),
-                Data::Str(s) => try_glob(&s, |d| res.push(d)),
+            match a.run(sets, depth - 1)? {
+                Data::Str(s) => try_glob(&s, |d| f(Data::Str(d))),
                 Data::List(l) => {
                     for v in l {
-                        res.push(v.to_string());
+                        f(v);
                     }
                 }
                 Data::Map(m) => {
                     for (k, v) in m {
-                        res.push(k.to_string());
-                        res.push(v.to_string());
+                        f(Data::Str(k));
+                        f(v);
                     }
                 }
-                v => res.push(v.to_string()),
+                v => f(v),
             }
         }
-        Ok(res)
+        Ok(())
     }
 
-    pub fn run_data(&self, sets: &mut Store) -> anyhow::Result<Vec<Data>> {
+    pub fn run_vec(&self, sets: &mut Store, depth: usize) -> anyhow::Result<Vec<Data>> {
         let mut res = Vec::new();
-        for a in &self.0 {
-            res.push(a.run(sets)?);
-        }
+        self.run_push(sets, depth, |d| res.push(d))?;
+        Ok(res)
+    }
+    pub fn run_s_vec(&self, sets: &mut Store, depth: usize) -> anyhow::Result<Vec<String>> {
+        let mut res = Vec::new();
+        self.run_push(sets, depth, |d| res.push(d.to_string()))?;
         Ok(res)
     }
 }
@@ -76,21 +88,21 @@ pub enum Arg {
 }
 
 impl Arg {
-    pub fn run(&self, sets: &mut Store) -> anyhow::Result<Data> {
+    pub fn run(&self, sets: &mut Store, depth: usize) -> anyhow::Result<Data> {
         match self {
             Arg::RawString(s) => Ok(Data::RawStr(s.to_string())),
             Arg::StringLit(s) => Ok(Data::Str(s.to_string())),
             Arg::StringExpr(v) => {
                 let mut s = String::new();
                 for a in v {
-                    s.push_str(&a.run(sets)?.to_string());
+                    s.push_str(&a.run(sets, depth)?.to_string());
                 }
                 Ok(Data::Str(s.to_string()))
             }
             Arg::HomeExpr(v) => {
                 let mut hp = std::env::var("HOME").unwrap_or(String::new());
                 for a in v {
-                    hp.push_str(&a.run(sets)?.to_string());
+                    hp.push_str(&a.run(sets, depth)?.to_string());
                 }
                 Ok(Data::Str(hp))
             }
@@ -128,7 +140,7 @@ impl Arg {
             }
             Arg::List(l) => {
                 let mut res = Vec::new();
-                for c in l.run_data(sets)? {
+                for c in l.run_vec(sets, depth)? {
                     match c {
                         Data::Str(s) => try_glob(&s, |d| res.push(Data::Str(d))),
                         o => res.push(o),
@@ -140,7 +152,7 @@ impl Arg {
             Arg::Map(mp) => {
                 let mut res = BTreeMap::new();
                 for (k, v) in mp {
-                    res.insert(k.to_string(), v.run(sets)?);
+                    res.insert(k.to_string(), v.run(sets, depth)?);
                 }
                 Ok(Data::Map(res))
             }

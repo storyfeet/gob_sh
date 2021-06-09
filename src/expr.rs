@@ -31,7 +31,7 @@ impl Expr {
                 filename,
                 append,
             } => {
-                let filename = filename.run(s)?.to_string();
+                let filename = filename.run(s, 0)?.to_string();
                 let ch = exec.run(s, Stdio::inherit(), Stdio::piped(), Stdio::piped())?;
                 let mut iread =
                     chan.as_reader(ch.stdout.e_str("No Output")?, ch.stderr.e_str("No ErrPut")?);

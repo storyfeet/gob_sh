@@ -1,7 +1,7 @@
 use crate::args::Args;
 use crate::exec::Exec;
 use crate::expr::Expr;
-use crate::store::{Data, Store};
+use crate::store::Store;
 use err_tools::*;
 
 pub enum Statement {
@@ -29,7 +29,7 @@ impl Statement {
                 e.run(s)
             }
             Statement::Assign("let", names, args) => {
-                let ag = args.run_data(s)?;
+                let ag = args.run_vec(s, 0)?;
                 if ag.len() < names.len() {
                     return e_str("Not enough results for var names");
                 }
@@ -39,11 +39,11 @@ impl Statement {
                 Ok(true)
             }
             Statement::Assign("export", names, args) => {
-                let ag = args.run(s)?;
+                let ag = args.run_vec(s, 0)?;
                 if ag.len() < names.len() {
                     return e_str("Not enough results for var names");
                 }
-                for (n, k) in names.iter().enumerate() {
+                for (n, k) in names.into_iter().enumerate() {
                     std::env::set_var(k.to_string(), ag[n].to_string());
                     //                    s.set(k.to_string(), Data::Str(ag[n].clone()))
                 }
@@ -54,7 +54,7 @@ impl Statement {
                 Ok(true)
             }
             Statement::For { vars, args, block } => {
-                let ag = args.run(s)?;
+                let ag = args.run_vec(s, 2)?;
                 let mut it = ag.into_iter();
                 loop {
                     s.push();
@@ -66,7 +66,7 @@ impl Statement {
                                 return Ok(true);
                             }
                         };
-                        s.set(vn.to_string(), Data::Str(nx.clone()));
+                        s.set(vn.to_string(), nx);
                     }
                     run_block_pop(&block, s)?;
                 }
@@ -90,7 +90,7 @@ impl Statement {
                 Ok(true)
             }
             Statement::Builtin("cd", args) => {
-                let mut run_res = match args.run(s)?.get(0) {
+                let mut run_res = match args.run_s_vec(s, 1)?.get(0) {
                     Some(v) => v.to_string(),
                     None => {
                         let hm = std::env::var("HOME")?;
@@ -114,7 +114,7 @@ impl Statement {
                 Ok(true)
             }
             Statement::Builtin("load", args) => {
-                let ag = args.run(s)?;
+                let ag = args.run_s_vec(s, 1)?;
                 for a in ag {
                     println!("Loading {}", a);
                     s.source_path(a)?;
@@ -122,7 +122,7 @@ impl Statement {
                 Ok(true)
             }
             Statement::Builtin("proglist", args) => {
-                let ag = args.run(s)?;
+                let ag = args.run_s_vec(s, 1)?;
                 for a in ag {
                     let matches = crate::tab_complete::prog_matches(&a);
                     for m in matches {

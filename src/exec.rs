@@ -43,7 +43,7 @@ impl Exec {
     ) -> anyhow::Result<Child> {
         match &self.conn {
             None => Command::new(&self.command)
-                .args(self.args.run(s)?)
+                .args(self.args.run_s_vec(s, 3)?)
                 .stdin(input)
                 .stdout(output)
                 .stderr(errput)
@@ -52,7 +52,7 @@ impl Exec {
 
             Some(conn) => {
                 let ch = Command::new(&self.command)
-                    .args(self.args.run(s)?)
+                    .args(self.args.run_s_vec(s, 3)?)
                     .stdin(input)
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
