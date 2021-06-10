@@ -1,14 +1,16 @@
 use crate::parser;
 use bogobble::traits::*;
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt::{self, Display};
 use std::io::Read;
 use std::path::Path;
+use std::rc::Rc;
 
-#[derive(Debug, Clone)]
+/*#[derive(Debug, Clone)]
 pub struct Store {
     scopes: Vec<BTreeMap<String, Data>>,
-}
+}*/
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Data {
@@ -63,7 +65,99 @@ impl Data {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Store(Rc<RefCell<IStore>>);
+
+#[derive(Debug, Clone)]
+pub struct IStore {
+    data: BTreeMap<String, Data>,
+    //f_top: bool,
+    parent: Option<Rc<RefCell<IStore>>>,
+}
+
+impl IStore {
+    fn get(&self, k: &str) -> Option<Data> {
+        match self.data.get(k) {
+            Some(v) => Some(v.clone()),
+            None => match self.parent {
+                Some(ref v) => v.borrow().get(k),
+                None => std::env::var(k).ok().map(Data::Str),
+            },
+        }
+    }
+
+    /// None returned means, data was added
+    fn set(&mut self, k: &str, v: Data) -> Option<Data> {
+        match self.data.get_mut(k) {
+            Some(a) => {
+                *a = v;
+                None
+            }
+            None => match self.parent {
+                Some(ref p) => p.borrow_mut().set(k, v),
+                None => Some(v),
+            },
+        }
+    }
+}
+
 impl Store {
+    pub fn new() -> Self {
+        Self(Rc::new(RefCell::new(IStore {
+            data: BTreeMap::new(),
+            parent: None,
+        })))
+    }
+    pub fn get(&self, k: &str) -> Option<Data> {
+        self.0.borrow().get(k)
+    }
+
+    pub fn let_set(&self, k: String, v: Data) {
+        self.0.borrow_mut().data.insert(k, v);
+    }
+
+    pub fn push(&mut self) {
+        *self = self.child();
+    }
+    pub fn child(&self) -> Self {
+        Self(Rc::new(RefCell::new(IStore {
+            data: BTreeMap::new(),
+            parent: Some(self.0.clone()),
+        })))
+    }
+
+    fn parent(&self) -> Self {
+        match self.0.borrow().parent {
+            Some(ref p) => Self(p.clone()),
+            None => Self::new(),
+        }
+    }
+    pub fn pop(&mut self) {
+        *self = self.parent();
+    }
+
+    pub fn set(&mut self, k: String, v: Data) {
+        let mut m = self.0.borrow_mut();
+        let v = m.set(&k, v);
+        drop(m);
+        match v {
+            Some(v) => self.let_set(k, v),
+            None => {}
+        }
+    }
+    pub fn source_path<P: AsRef<Path>>(&mut self, p: P) -> anyhow::Result<()> {
+        let mut f = std::fs::File::open(p)?;
+        let mut buf = String::new();
+        f.read_to_string(&mut buf)?;
+        let p = parser::Lines.parse_s(&buf).map_err(|e| e.strung())?;
+        for v in p {
+            v.run(self).ok();
+        }
+        Ok(())
+    }
+}
+
+/*impl Store {
     pub fn new() -> Self {
         Self {
             scopes: vec![BTreeMap::new()],
@@ -116,4 +210,4 @@ impl Store {
         }
         Ok(())
     }
-}
+}*/

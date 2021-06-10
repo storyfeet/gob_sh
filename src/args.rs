@@ -44,17 +44,17 @@ impl Args {
         for a in &self.0 {
             match a.run(sets, depth - 1)? {
                 Data::Str(s) => try_glob(&s, |d| {
-                    f(Data::Str(d));
+                    f(Data::Str(d)).ok();
                 }),
                 Data::List(l) => {
                     for v in l {
-                        f(v);
+                        f(v)?;
                     }
                 }
                 Data::Map(m) => {
                     for (k, v) in m {
-                        f(Data::Str(k));
-                        f(v);
+                        f(Data::Str(k))?;
+                        f(v)?;
                     }
                 }
                 v => f(v)?,
