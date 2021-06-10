@@ -54,6 +54,24 @@ impl Statement {
                 Ok(true)
             }
             Statement::For { vars, args, block } => {
+                let mut push_v = Vec::new();
+
+                args.run_push(s, 2, |d| {
+                    push_v.push(d);
+                    if push_v.len() >= vars.len() {
+                        s.push();
+                        let mut vals = Vec::new();
+                        std::mem::swap(&mut push_v, &mut vals);
+                        let (mut k_it, mut v_it) = (vars.iter(), vals.into_iter());
+                        while let (Some(k), Some(v)) = (k_it.next(), v_it.next()) {
+                            s.set(k.to_string(), v)
+                        }
+
+                        run_block_pop(&block, s)?;
+                    }
+                    Ok(())
+                })?;
+
                 let ag = args.run_vec(s, 2)?;
                 let mut it = ag.into_iter();
                 loop {

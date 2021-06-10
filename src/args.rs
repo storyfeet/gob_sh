@@ -29,7 +29,7 @@ fn try_glob<F: FnMut(String)>(s: &str, mut push: F) {
 }
 
 impl Args {
-    pub fn run_push<F: FnMut(Data)>(
+    pub fn run_push<F: FnMut(Data) -> anyhow::Result<()>>(
         &self,
         sets: &mut Store,
         depth: usize,
@@ -37,13 +37,15 @@ impl Args {
     ) -> anyhow::Result<()> {
         if depth == 0 {
             for a in &self.0 {
-                f(a.run(sets, 0)?)
+                f(a.run(sets, 0)?)?;
             }
             return Ok(());
         }
         for a in &self.0 {
             match a.run(sets, depth - 1)? {
-                Data::Str(s) => try_glob(&s, |d| f(Data::Str(d))),
+                Data::Str(s) => try_glob(&s, |d| {
+                    f(Data::Str(d));
+                }),
                 Data::List(l) => {
                     for v in l {
                         f(v);
@@ -55,7 +57,7 @@ impl Args {
                         f(v);
                     }
                 }
-                v => f(v),
+                v => f(v)?,
             }
         }
         Ok(())
@@ -63,12 +65,18 @@ impl Args {
 
     pub fn run_vec(&self, sets: &mut Store, depth: usize) -> anyhow::Result<Vec<Data>> {
         let mut res = Vec::new();
-        self.run_push(sets, depth, |d| res.push(d))?;
+        self.run_push(sets, depth, |d| {
+            res.push(d);
+            Ok(())
+        })?;
         Ok(res)
     }
     pub fn run_s_vec(&self, sets: &mut Store, depth: usize) -> anyhow::Result<Vec<String>> {
         let mut res = Vec::new();
-        self.run_push(sets, depth, |d| res.push(d.to_string()))?;
+        self.run_push(sets, depth, |d| {
+            res.push(d.to_string());
+            Ok(())
+        })?;
         Ok(res)
     }
 }
