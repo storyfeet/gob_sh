@@ -95,9 +95,20 @@ fn kw(s: &'static str) -> ItemWrap<PKeyWord> {
     }
 }
 
-ss_parser! { Ident : ParseMark,
-    (Letter.one(),LetterNum.star())
+ss_parser! { Ident:ParseMark,
+    ss_or!(
+        (Letter.one(),LetterNum.star()),
+        pl!('"',Any.except('"').star(),'"'),
+    )
 }
+ss_parser! {Id:ParseMark,
+    (Item::Ident,Ident,Ws)
+}
+
+ss_parser! {Idents:ParseMark,
+    (Ws, PPlus(Id)),
+}
+
 ss_parser! { Wn:ParseMark,
     (Item::WS," \n\t\r".star())
 }
@@ -129,14 +140,6 @@ ss_parser! {FullStatement:ParseMark,
     (Statement,End,Empties)
 }
 
-ss_parser! {Id:ParseMark,
-    (Ws,Item::Ident,Ident,Ws)
-}
-
-ss_parser! {Idents:ParseMark,
-    (Item::Ident, PPlus((Ws,Ident,Ws))),
-}
-
 ss_parser! { Builtin:ParseMark,
     ss_or!(kw("cd"),kw("load"))
 }
@@ -147,7 +150,7 @@ ss_parser! { Assigner:ParseMark,
 
 ss_parser! { Statement:ParseMark,
     ss_or!(
-        pl!(Assigner,Idents,Ws,Item::Symbol,"=", ArgsS),
+        pl!(Assigner,Idents,Item::Symbol,"=", ArgsS),
         pl!(kw("for"),PlusUntil(Id,kw("in")),ArgsP,Block),
         pl!(kw("if"),Ws,ExprRight,Block,Maybe((Wn,kw("else"),Block))),
         pl!(kw("disown"),PExec),
@@ -211,8 +214,8 @@ ss_parser! {StringPart:ParseMark,
     ss_or!(
         pl!(Item::Symbol, "$[",Ws,PExec,Ws,Item::Symbol,"]"),
         pl!(Item::Symbol, "$(",Ws,PExec,Ws,Item::Symbol,")"),
-        pl!(Item::Var, "${",Ws,LetterNum.plus(),Ws,"}"),
-        pl!(Item::Var, "$",LetterNum.plus()),
+        pl!(Item::Var, "${",Ws,Id,"}"),
+        pl!(Item::Var, "$",Id),
         (Item::String,LitString),
     )
 }
@@ -221,8 +224,8 @@ ss_parser! {QuotedStringPart:ParseMark,
     ss_or!(
         pl!(Item::Symbol,Item::Symbol,"$[",Ws,PExec,Ws,Item::Symbol,"]"),
         pl!(Item::Symbol, Item::Symbol,"$(",Ws,PExec,Ws,Item::Symbol,")"),
-        pl!(Item::Symbol, "${",Ws,Item::Var,LetterNum.plus(),"}"),
-        pl!(Item::Symbol,"$",LetterNum.plus()),
+        pl!(Item::Var, "${",Ws,Id,"}"),
+        pl!(Item::Var,"$",Id),
         (Item::Quoted,QuotedLitString),
     )
 }
@@ -231,7 +234,7 @@ ss_parser! {ArgP:ParseMark,
     ss_or!(
         PRHash,
         pl!(Item::Symbol,"[",ArgsS,Item::Symbol,"]"),
-        pl!(Item::Symbol,"{",PSepUntil(pl!(Ws,Item::Ident,Ident,Ws,Item::Symbol,"=",Ws,ArgP),(Item::Symbol,Ws,";"),(Item::Symbol,Ws,"}"))),
+        pl!(Item::Symbol,"{",PSepUntil(pl!(Ws,Id,Item::Symbol,"=",Ws,ArgP),(Item::Symbol,Ws,";"),(Item::Symbol,Ws,"}"))),
         PPlus(StringPart),
         pl!(Put(Item::String),Item::Symbol,"\"",Put(Item::Quoted),PStar(QuotedStringPart),Item::Symbol,"\"")
     )

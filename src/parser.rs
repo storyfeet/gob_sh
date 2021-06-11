@@ -18,7 +18,11 @@ char_bool! {LetterNum,
 }
 
 parser! {(Ident->String),
-    string((Letter.one(),LetterNum.istar()))
+    or!(
+        string((Letter.one(),LetterNum.istar())),
+        ('"',string(Any.except('"').istar()),'"').map(|(_,b,_)|b)
+    )
+
 }
 
 parser! {(Path->String)
@@ -138,8 +142,8 @@ parser! {(StringPart->Arg)
     or!(
         ("$[",ws__(PExec),"]").map(|(_,e,_)|Arg::ArrCommand(e)),
         ("$(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
-        ("${",ws__(string(LetterNum.plus())),"}").map(|(_,s,_)|Arg::Var(s)),
-        ("$",string(LetterNum.plus())).map(|(_,s)|Arg::Var(s)),
+        ("${",ws__(Ident),"}").map(|(_,s,_)|Arg::Var(s)),
+        ("$",Ident).map(|(_,s)|Arg::Var(s)),
         LitString.map(|s|Arg::StringLit(s)),
     )
 }
@@ -148,8 +152,8 @@ parser! {(QuotedStringPart->Arg)
     or!(
         ("$[",ws__(PExec),"]").map(|(_,e,_)|Arg::ArrCommand(e)),
         ("$(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
-        ("${",ws__(string(LetterNum.plus())),"}").map(|(_,s,_)|Arg::Var(s)),
-        ("$",string(LetterNum.plus())).map(|(_,s)|Arg::Var(s)),
+        ("${",ws__(Ident),"}").map(|(_,s,_)|Arg::Var(s)),
+        ("$",Ident).map(|(_,s)|Arg::Var(s)),
         QuotedLitString.map(|s|Arg::StringLit(s)),
     )
 }
