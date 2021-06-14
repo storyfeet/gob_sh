@@ -210,12 +210,18 @@ ss_parser! { LitString:ParseMark,
     ))
 }
 
+ss_parser! { Var:ParseMark,
+    ss_or!(
+        pl!(Item::Var, "${",PSepPlus(pl!(Ws,Id),(Item::Symbol,"|")),Maybe(pl!(Ws,Item::Symbol,",",Ws,ArgP)),Item::Var,"}"),
+        pl!(Item::Var, "$",Id),
+    )
+}
+
 ss_parser! {StringPart:ParseMark,
     ss_or!(
         pl!(Item::Symbol, "$[",Ws,PExec,Ws,Item::Symbol,"]"),
         pl!(Item::Symbol, "$(",Ws,PExec,Ws,Item::Symbol,")"),
-        pl!(Item::Var, "${",Ws,Id,"}"),
-        pl!(Item::Var, "$",Id),
+        Var,
         (Item::String,LitString),
     )
 }
@@ -224,8 +230,7 @@ ss_parser! {QuotedStringPart:ParseMark,
     ss_or!(
         pl!(Item::Symbol,Item::Symbol,"$[",Ws,PExec,Ws,Item::Symbol,"]"),
         pl!(Item::Symbol, Item::Symbol,"$(",Ws,PExec,Ws,Item::Symbol,")"),
-        pl!(Item::Var, "${",Ws,Id,"}"),
-        pl!(Item::Var,"$",Id),
+        Var,
         (Item::Quoted,QuotedLitString),
     )
 }

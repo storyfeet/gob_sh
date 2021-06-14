@@ -6,7 +6,7 @@ use crate::statement::Statement as Stt;
 use bogobble::*;
 
 char_bool! {RuSpecial,
-    "=#&$|^{}()[]\\\" \n\t<>;"
+    "=#&$|^{}()[]\\\" \n\t<>,;"
 }
 
 char_bool! {Letter,
@@ -138,12 +138,18 @@ parser! { (LitString->String)
     ))
 }
 
+parser! { (Var -> Arg)
+    or!(
+        ("${",sep_plus(ws__(Ident),"|"),maybe((",",ws__(ArgP))),"}").map(|(_,s,op,_)|Arg::VarList(s,op.map(|(_,b)|Box::new(b)))),
+        ("$",Ident).map(|(_,s)|Arg::Var(s)),
+    )
+}
+
 parser! {(StringPart->Arg)
     or!(
         ("$[",ws__(PExec),"]").map(|(_,e,_)|Arg::ArrCommand(e)),
         ("$(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
-        ("${",ws__(Ident),"}").map(|(_,s,_)|Arg::Var(s)),
-        ("$",Ident).map(|(_,s)|Arg::Var(s)),
+        Var,
         LitString.map(|s|Arg::StringLit(s)),
     )
 }
@@ -152,8 +158,7 @@ parser! {(QuotedStringPart->Arg)
     or!(
         ("$[",ws__(PExec),"]").map(|(_,e,_)|Arg::ArrCommand(e)),
         ("$(",ws__(PExec),")").map(|(_,e,_)|Arg::Command(e)),
-        ("${",ws__(Ident),"}").map(|(_,s,_)|Arg::Var(s)),
-        ("$",Ident).map(|(_,s)|Arg::Var(s)),
+        Var,
         QuotedLitString.map(|s|Arg::StringLit(s)),
     )
 }

@@ -89,6 +89,7 @@ pub enum Arg {
     HomeExpr(Vec<Arg>),
     StringExpr(Vec<Arg>),
     Var(String),
+    VarList(Vec<String>, Option<Box<Arg>>),
     List(Args),
     Map(Vec<(String, Arg)>),
     Command(Exec),
@@ -119,6 +120,18 @@ impl Arg {
                 Ok(Data::Str(format!("{}{}", hp, s)))
             }
             Arg::Var(name) => sets.get(name).e_str("No Var by that name"),
+            Arg::VarList(vec, def) => {
+                for a in vec {
+                    match sets.get(a) {
+                        Some(v) => return Ok(v),
+                        None => {}
+                    }
+                }
+                match &def {
+                    Some(a) => a.run(sets, 0),
+                    None => return e_string(format!("No var by names : {:?}", vec)),
+                }
+            }
             Arg::Command(ex) => {
                 let ch = ex.run(sets, Stdio::null(), Stdio::piped(), Stdio::inherit())?;
                 let mut buf = String::new();
