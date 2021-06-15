@@ -34,7 +34,27 @@ impl Statement {
                     return e_str("Not enough results for var names");
                 }
                 for (n, k) in names.iter().enumerate() {
+                    s.let_set(k.to_string(), ag[n].clone())
+                }
+                Ok(true)
+            }
+            Statement::Assign("set", names, args) => {
+                let ag = args.run_vec(s, 0)?;
+                if ag.len() < names.len() {
+                    return e_str("Not enough results for var names");
+                }
+                for (n, k) in names.iter().enumerate() {
                     s.set(k.to_string(), ag[n].clone())
+                }
+                Ok(true)
+            }
+            Statement::Assign("push", names, args) => {
+                let ag = args.run_vec(s, 0)?;
+                if ag.len() < names.len() {
+                    return e_str("Not enough results for var names");
+                }
+                for (n, k) in names.iter().enumerate() {
+                    s.push_set(k.to_string(), ag[n].clone())?;
                 }
                 Ok(true)
             }
@@ -133,13 +153,13 @@ impl Statement {
             }
             Statement::Builtin("var", args) => {
                 let dvec = args.run_s_vec(s, 1)?;
-                s.for_each(|k, v| {
+                s.for_each(|k, v, d| {
                     for a in &dvec {
                         if !k.contains(a) {
                             return;
                         }
                     }
-                    println!("{} = {}", k, v);
+                    println!("{}:{} = {}", d, k, v);
                 });
                 Ok(true)
             }

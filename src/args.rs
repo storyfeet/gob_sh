@@ -1,5 +1,6 @@
+use crate::data::Data;
 use crate::exec::Exec;
-use crate::store::{Data, Store};
+use crate::store::Store;
 use err_tools::*;
 use std::collections::BTreeMap;
 use std::io::Read;
