@@ -30,7 +30,7 @@ parser! {(Path->String)
 }
 
 parser! {(Builtin->&'static str)
-    or!("cd","load","proglist")
+    or!("cd","load","proglist","var","scope_depth")
 }
 
 parser! {(Assigner->&'static str)

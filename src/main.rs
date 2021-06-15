@@ -114,6 +114,5 @@ pub fn run_stream_out<T: std::io::Read>(t: &mut T, store: &mut Store) -> anyhow:
     let mut s = String::new();
     t.read_to_string(&mut s)?;
     let ar = parser::Lines.parse_s(&s).map_err(|e| e.strung())?;
-    store.push();
-    crate::statement::run_block_pop(&ar, store)
+    crate::statement::run_block(&ar, &mut store.child())
 }

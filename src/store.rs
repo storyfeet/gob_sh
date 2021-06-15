@@ -99,6 +99,22 @@ impl IStore {
             },
         }
     }
+
+    fn for_each<F: FnMut(&str, &Data)>(&self, f: &mut F) {
+        if let Some(p) = &self.parent {
+            p.borrow().for_each(f);
+        }
+        for (k, v) in &self.data {
+            f(k, v)
+        }
+    }
+
+    fn scope_depth(&self) -> usize {
+        match &self.parent {
+            Some(p) => p.borrow().scope_depth() + 1,
+            None => 0,
+        }
+    }
 }
 
 impl Store {
@@ -136,6 +152,10 @@ impl Store {
         *self = self.parent();
     }
 
+    pub fn scope_depth(&mut self) -> usize {
+        self.0.borrow().scope_depth()
+    }
+
     pub fn set(&mut self, k: String, v: Data) {
         let mut m = self.0.borrow_mut();
         let v = m.set(&k, v);
@@ -154,6 +174,18 @@ impl Store {
             v.run(self).ok();
         }
         Ok(())
+    }
+
+    pub fn for_each<F: FnMut(&str, &Data)>(&self, mut f: F) {
+        self.0.borrow().for_each(&mut f)
+    }
+
+    pub fn as_map(&self) -> BTreeMap<String, Data> {
+        let mut mp = BTreeMap::new();
+        self.for_each(|k, v| {
+            mp.insert(k.to_string(), v.clone());
+        });
+        mp
     }
 }
 

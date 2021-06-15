@@ -141,7 +141,7 @@ ss_parser! {FullStatement:ParseMark,
 }
 
 ss_parser! { Builtin:ParseMark,
-    ss_or!(kw("cd"),kw("load"))
+    ss_or!(kw("cd"),kw("load"),kw("proglist"),kw("var"),kw("scope_depth"))
 }
 
 ss_parser! { Assigner:ParseMark,

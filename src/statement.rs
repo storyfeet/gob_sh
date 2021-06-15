@@ -55,34 +55,28 @@ impl Statement {
             }
             Statement::For { vars, args, block } => {
                 let mut push_v = Vec::new();
-                let mut sc = s.clone();
+                let sc = s.clone();
                 args.run_push(s, 2, |d| {
                     push_v.push(d);
                     if push_v.len() >= vars.len() {
-                        sc.push();
+                        let mut ch = sc.child();
                         let mut vals = Vec::new();
                         std::mem::swap(&mut push_v, &mut vals);
                         let (mut k_it, mut v_it) = (vars.iter(), vals.into_iter());
                         while let (Some(k), Some(v)) = (k_it.next(), v_it.next()) {
-                            sc.set(k.to_string(), v)
+                            ch.set(k.to_string(), v)
                         }
 
-                        run_block_pop(&block, &mut sc)?;
+                        run_block(&block, &mut ch)?;
                     }
                     Ok(())
                 })?;
                 Ok(true)
             }
             Statement::If { expr, block, else_ } => match expr.run(s)? {
-                true => {
-                    s.push();
-                    run_block_pop(&block, s)
-                }
+                true => run_block(&block, &mut s.child()),
                 false => match &else_ {
-                    Some(ee) => {
-                        s.push();
-                        run_block_pop(&ee, s)
-                    }
+                    Some(ee) => run_block(&ee, &mut s.child()),
                     None => Ok(true),
                 },
             },
@@ -133,6 +127,22 @@ impl Statement {
                 }
                 Ok(true)
             }
+            Statement::Builtin("scope_depth", _) => {
+                println!("Scope depth = {}", s.scope_depth());
+                Ok(true)
+            }
+            Statement::Builtin("var", args) => {
+                let dvec = args.run_s_vec(s, 1)?;
+                s.for_each(|k, v| {
+                    for a in &dvec {
+                        if !k.contains(a) {
+                            return;
+                        }
+                    }
+                    println!("{} = {}", k, v);
+                });
+                Ok(true)
+            }
             Statement::Builtin(b, _) => {
                 println!("Builtin doesn't exist : '{}'", b);
                 Ok(true)
@@ -141,16 +151,14 @@ impl Statement {
     }
 }
 
-pub fn run_block_pop(block: &[Statement], store: &mut Store) -> anyhow::Result<bool> {
+pub fn run_block(block: &[Statement], store: &mut Store) -> anyhow::Result<bool> {
     for st in block {
         match st.run(store) {
             Ok(_) => {}
             Err(e) => {
-                store.pop();
                 return Err(e);
             }
         }
     }
-    store.pop();
     Ok(true)
 }
