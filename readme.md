@@ -65,7 +65,7 @@ echo $x
 
 if true {
 echo Its True
-} else 
+} else {
 echo Its False
 }
 
