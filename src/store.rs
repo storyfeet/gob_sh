@@ -56,7 +56,17 @@ impl IStore {
             }
             None => match self.parent {
                 Some(ref p) => p.borrow_mut().push_set(k, v),
-                None => Ok(Some(v)),
+                None => {
+                    //try pushing on Env var
+                    match std::env::var(k) {
+                        Ok(mut e) => {
+                            e.push_str(&v.to_string());
+                            std::env::set_var(k, e);
+                            Ok(None)
+                        }
+                        Err(_) => Ok(Some(v)),
+                    }
+                }
             },
         }
     }
