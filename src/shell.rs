@@ -101,7 +101,13 @@ impl Shell {
 
     pub fn on_enter(&mut self, rt: &mut RT) {
         let c_line = &self.prompt.cursor.s;
-        match parser::Lines.parse_s(c_line) {
+        let alias = crate::store::alias(c_line, &self.store);
+        let parse_res = match &alias {
+            Some(s) => parser::Lines.parse_s(&s).map_err(|e| e.strung()),
+            None => parser::Lines.parse_s(c_line).map_err(|e| e.strung()),
+        };
+
+        match parse_res {
             Ok(v) => {
                 if v.len() > 0 {
                     self.prompt.guess_man.add_recent(c_line.clone());
@@ -126,6 +132,9 @@ impl Shell {
                 rt.activate_raw_mode().ok();
                 self.reset(rt);
                 self.prompt.unprint(rt);
+                if let Some(s) = alias {
+                    self.prompt.message = Some(format!("Alias = '{}'", s));
+                }
                 self.re_highlight();
 
                 self.prompt.print(rt);

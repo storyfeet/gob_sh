@@ -81,6 +81,16 @@ impl IStore {
         }
     }
 
+    fn do_with<F: FnOnce(&Data)>(&self, k: &str, f: F) {
+        match self.data.get(k) {
+            Some(v) => f(v),
+            None => match &self.parent {
+                Some(p) => p.borrow().do_with(k, f),
+                None => {}
+            },
+        }
+    }
+
     fn scope_depth(&self) -> usize {
         match &self.parent {
             Some(p) => p.borrow().scope_depth() + 1,
@@ -98,6 +108,10 @@ impl Store {
     }
     pub fn get(&self, k: &str) -> Option<Data> {
         self.0.borrow().get(k)
+    }
+
+    pub fn do_with<F: FnOnce(&Data)>(&self, k: &str, f: F) {
+        self.0.borrow().do_with(k, f)
     }
 
     pub fn let_set(&self, k: String, v: Data) {
@@ -180,6 +194,30 @@ impl Store {
         });
         mp
     }
+}
+
+//consider where to put this func
+pub fn alias(s: &str, store: &Store) -> Option<String> {
+    let mut res = None;
+    store.do_with("RU_ALIAS", |d| {
+        if let Data::Map(m) = d {
+            for (k, v) in m {
+                if s.starts_with(k) {
+                    let mut vs = v.to_string();
+                    let push = &s[k.len()..];
+                    match push.chars().next() {
+                        Some(' ') | Some('\t') | None => {
+                            vs.push_str(&s[k.len()..]);
+                            res = Some(vs);
+                            return;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+    });
+    res
 }
 
 /*impl Store {
