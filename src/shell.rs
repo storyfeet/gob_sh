@@ -132,8 +132,10 @@ impl Shell {
                 rt.activate_raw_mode().ok();
                 self.reset(rt);
                 self.prompt.unprint(rt);
-                if let Some(s) = alias {
-                    self.prompt.message = Some(format!("Alias = '{}'", s));
+                if let (Some(s), Some(show)) = (alias, self.store.get("RU_SHOW_ALIAS")) {
+                    if show.is_true() {
+                        self.prompt.message = Some(format!("Alias = '{}'", s));
+                    }
                 }
                 self.re_highlight();
 

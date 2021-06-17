@@ -53,6 +53,16 @@ impl Data {
         }
     }
 
+    pub fn is_true(&self) -> bool {
+        match self {
+            Data::Str(s) => match s.as_ref() {
+                "true" | "TRUE" | "1" => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
     pub fn push(&mut self, b: Self) -> anyhow::Result<()> {
         match (self, b) {
             (Data::List(a), Data::List(b)) => a.extend(b),
