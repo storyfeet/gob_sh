@@ -29,6 +29,8 @@ pub enum Item {
     String,
     Quoted,
     Expr,
+    Close,
+    Open,
 }
 
 impl Item {
@@ -49,6 +51,8 @@ impl Item {
             Item::Quoted => "quoted",
             Item::Expr => "expr",
             Item::WS => "ws",
+            Item::Open => "open",
+            Item::Close => "close",
         }
     }
 }
@@ -57,7 +61,6 @@ impl Display for Item {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Item::Keyword => write!(f, "{}", color::Fg(color::Yellow)),
-            //Item::Statement => write!(f, "{}", color::Fg(color::LightMagenta)),
             Item::Symbol => write!(f, "{}", color::Fg(color::Blue)),
             Item::Var => write!(f, "{}", color::Fg(color::LightMagenta)),
             Item::Ident | Item::Path => write!(f, "{}", color::Fg(color::Reset)),
@@ -65,7 +68,7 @@ impl Display for Item {
             Item::Lit | Item::Quoted => write!(f, "{}", color::Fg(color::LightYellow)),
             Item::Esc => write!(f, "{}", color::Fg(color::LightBlue)),
             Item::Comment => write!(f, "{}", color::Fg(color::LightBlue)),
-            Item::WS => Ok(()),
+            Item::WS | Item::Close => Ok(()),
             _ => write!(f, "{}", color::Fg(color::Reset)),
         }
     }

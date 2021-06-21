@@ -145,6 +145,7 @@ impl Cursor {
     pub fn item_over(&self) -> anyhow::Result<CursorItem> {
         let pf = PosFinder {
             origin: self.index,
+            opens: RefCell::new(Vec::new()),
             res: RefCell::new(CursorItem {
                 item: Item::Command,
                 start: 0,
@@ -181,6 +182,7 @@ impl CursorItem {
 
 pub struct PosFinder {
     origin: usize,
+    opens: RefCell<Vec<CursorItem>>,
     res: RefCell<CursorItem>,
 }
 
@@ -191,6 +193,20 @@ impl ParseMark for PosFinder {
                 let mut p = self.res.borrow_mut();
                 p.item = item;
                 p.start = n;
+                self.drop_after(n);
+                match item {
+                    Item::Command | Item::Keyword => {
+                        self.opens.borrow_mut().push(CursorItem {
+                            item,
+                            start: n,
+                            fin: None,
+                        });
+                    }
+                    Item::Close => {
+                        self.opens.borrow_mut().pop();
+                    }
+                    _ => {}
+                }
             }
             Some(_) | None => {
                 let mut p = self.res.borrow_mut();
@@ -198,6 +214,15 @@ impl ParseMark for PosFinder {
                     p.fin = pos;
                 }
             }
+        }
+    }
+}
+
+impl PosFinder {
+    fn drop_after(&self, pos: usize) {
+        let mut v = self.opens.borrow_mut();
+        if let Some(n) = v.iter().position(|x| x.start > pos) {
+            v.truncate(n);
         }
     }
 }
