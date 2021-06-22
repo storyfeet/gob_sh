@@ -1,5 +1,6 @@
 //use crate::parser::Letter;
 use crate::partial::*;
+use transliterate::parser::BackTo;
 //use bogobble::common::*;
 use bogobble::*;
 use std::collections::BTreeMap;
@@ -26,6 +27,8 @@ impl Highlight {
         Lines.ss_convert(s, self)
     }
 }
+
+impl BackTo for Highlight {}
 
 impl ParseMark for Highlight {
     fn mark(&self, i: Item, s: &mut String, _: Option<usize>) {

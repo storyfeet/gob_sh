@@ -8,7 +8,7 @@ use transliterate::bo_part::*;
 use transliterate::parser::*;
 use transliterate::*;
 
-pub trait ParseMark {
+pub trait ParseMark: BackTo {
     fn mark(&self, item: Item, s: &mut String, pos: Option<usize>);
 }
 
@@ -30,7 +30,6 @@ pub enum Item {
     Quoted,
     Expr,
     Close,
-    Open,
 }
 
 impl Item {
@@ -51,7 +50,6 @@ impl Item {
             Item::Quoted => "quoted",
             Item::Expr => "expr",
             Item::WS => "ws",
-            Item::Open => "open",
             Item::Close => "close",
         }
     }
@@ -173,11 +171,11 @@ ss_parser! {ExprLeft:ParseMark,
 }
 
 ss_parser! {ExprRight:ParseMark,
-    pl!(ExprLeft,Maybe((Ws,Item::Symbol,ss_or!("&&","||"),(Wn,ExprRight))))
+    pl!(ExprLeft,Maybe((Ws,Item::Symbol,Item::Close,ss_or!("&&","||"),(Wn,ExprRight))))
 }
 
 ss_parser! {ExTarget:ParseMark,
-    (Item::Symbol,"|",Ws,PExec)
+    (Item::Symbol,Item::Close,"|",Ws,PExec)
 }
 
 ss_parser! {PConnection:ParseMark,
@@ -222,8 +220,8 @@ ss_parser! { Var:ParseMark,
 
 ss_parser! {StringPart:ParseMark,
     ss_or!(
-        pl!(Item::Symbol, "$[",Ws,PExec,Ws,Item::Symbol,"]"),
-        pl!(Item::Symbol, "$(",Ws,PExec,Ws,Item::Symbol,")"),
+        pl!(Item::Symbol, "$[",Ws,PExec,Ws,Item::Symbol,Item::Close,"]"),
+        pl!(Item::Symbol, "$(",Ws,PExec,Ws,Item::Symbol,Item::Close,")"),
         Var,
         (Item::String,LitString),
     )
@@ -231,8 +229,8 @@ ss_parser! {StringPart:ParseMark,
 
 ss_parser! {QuotedStringPart:ParseMark,
     ss_or!(
-        pl!(Item::Symbol,Item::Symbol,"$[",Ws,PExec,Ws,Item::Symbol,"]"),
-        pl!(Item::Symbol, Item::Symbol,"$(",Ws,PExec,Ws,Item::Symbol,")"),
+        pl!(Item::Symbol,Item::Symbol,"$[",Ws,PExec,Ws,Item::Symbol,Item::Close,"]"),
+        pl!(Item::Symbol, Item::Symbol,"$(",Ws,PExec,Ws,Item::Symbol,Item::Close,")"),
         Var,
         (Item::Quoted,QuotedLitString),
     )

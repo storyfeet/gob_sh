@@ -444,8 +444,6 @@ dependencies = [
 [[package]]
 name = "transliterate"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "312c433d14bc7049a12e7c396fa3fff67fdad3d7b195d8d46371991233133d25"
 dependencies = [
  "bogobble",
 ]

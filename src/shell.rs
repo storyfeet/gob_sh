@@ -45,17 +45,21 @@ impl Shell {
     fn tab_complete(&mut self) {
         self.prompt.clear_help();
 
-        let ci = match self.prompt.cursor.item_over() {
+        let (cmd, ci) = match self.prompt.cursor.item_over() {
             Ok(ci) => ci,
             Err(e) => {
                 self.prompt.message = Some(format!("{}", e));
                 return;
             }
         };
+        let cmd = cmd.on_str(&self.prompt.cursor.s);
         let s = ci.on_str(&self.prompt.cursor.s);
 
         let complete = match ci.item {
-            Item::String | Item::Arg | Item::Path => tab_complete_path(s),
+            Item::String | Item::Arg | Item::Path => {
+                self.prompt.message = Some(format!("tcomplete command = '{}'", cmd));
+                tab_complete_path(s)
+            }
             Item::Keyword | Item::Command => tab_complete_prog(s),
             Item::Ident => {
                 self.prompt.message = Some(format!(
@@ -67,16 +71,22 @@ impl Shell {
             }
             _ => {
                 self.prompt.message = Some(format!(
-                    "Could not complete {:?} :'{}'",
+                    "Could not complete {:?} :'{}' (with command '{}')",
                     ci.item,
-                    ci.on_str(&self.prompt.cursor.s)
+                    ci.on_str(&self.prompt.cursor.s),
+                    cmd,
                 ));
                 return;
             }
         };
 
         match complete.len() {
-            0 => self.prompt.message = Some(format!("Could not complete '{}'", s)),
+            0 => {
+                self.prompt.message = Some(format!(
+                    "No matches for '{:?}': '{}' ,(with command {})",
+                    ci.item, s, cmd
+                ))
+            }
             1 => self
                 .prompt
                 .cursor
