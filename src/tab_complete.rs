@@ -41,7 +41,7 @@ pub fn all_strs_agree<I: Iterator<Item = S>, S: AsRef<str>>(
 }
 
 pub fn tab_complete_args(s: &str, c: &str, store: &mut Store) -> anyhow::Result<Vec<String>> {
-    println!("Tab complete args \n\r\n");
+    // println!("Tab complete args \n\r\n");
 
     let mut op = None;
     store.do_with("RU_COMPLETE", |m| {

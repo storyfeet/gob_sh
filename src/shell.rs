@@ -57,13 +57,16 @@ impl Shell {
 
         let complete = match ci.item {
             Item::String | Item::Arg | Item::Path => {
-                self.prompt.message = Some(format!("tcomplete command = '{}'", cmd));
                 let mut v = tab_complete_path(s);
                 match tab_complete_args(s, cmd, &mut self.store) {
                     Ok(r) => v.extend(r),
                     Err(e) => {
-                        self.prompt.message =
-                            Some(format!("tab complete for {} err : '{}'", cmd, e))
+                        if let Some(db) = self.store.get("RU_DEBUG") {
+                            if db.is_true() {
+                                self.prompt.message =
+                                    Some(format!("tab complete for {} err : '{}'", cmd, e))
+                            }
+                        }
                     }
                 }
                 v
@@ -101,13 +104,6 @@ impl Shell {
                 .replace_range(ci.to_ranger(), &complete[0]),
             _ => self.prompt.options = Some((ci.to_ranger(), complete)),
         }
-        /*match complete {
-            Complete::None => self.prompt.message = Some(format!("Could not complete '{}'", s)),
-            Complete::One(tc) => {
-                self.prompt.cursor.replace_range(ci.to_ranger(), &tc);
-            }
-            Complete::Many(v) => self.prompt.options = Some((ci.to_ranger(), v)),
-        }*/
     }
 
     pub fn re_highlight(&mut self) {
