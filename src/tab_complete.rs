@@ -1,4 +1,8 @@
+use crate::data::Data;
+use crate::parser;
+use crate::store::Store;
 use crate::str_util;
+use bogobble::traits::*;
 use chrono::*;
 use ru_history::HistoryStore;
 use std::collections::BTreeSet;
@@ -34,6 +38,32 @@ pub fn all_strs_agree<I: Iterator<Item = S>, S: AsRef<str>>(
         }
     }
     Some(res[..max].to_string())
+}
+
+pub fn tab_complete_args(s: &str, c: &str, store: &mut Store) -> anyhow::Result<Vec<String>> {
+    println!("Tab complete args \n\r\n");
+
+    let mut op = None;
+    store.do_with("RU_COMPLETE", |m| {
+        if let Data::Map(mp) = m {
+            op = mp.get(c).map(|c| c.clone())
+        }
+    });
+
+    let mut res = Vec::new();
+    if let Some(a_str) = op {
+        let args = parser::ArgsP
+            .parse_s(&a_str.to_string())
+            .map_err(|e| e.strung())?;
+        let a_done = args.run_s_vec(store, 2)?;
+
+        for a in &a_done {
+            if a.starts_with(s) {
+                res.push(a.to_string());
+            }
+        }
+    }
+    Ok(res)
 }
 
 pub fn tab_complete_prog(s: &str) -> Vec<String> {

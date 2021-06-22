@@ -58,7 +58,15 @@ impl Shell {
         let complete = match ci.item {
             Item::String | Item::Arg | Item::Path => {
                 self.prompt.message = Some(format!("tcomplete command = '{}'", cmd));
-                tab_complete_path(s)
+                let mut v = tab_complete_path(s);
+                match tab_complete_args(s, cmd, &mut self.store) {
+                    Ok(r) => v.extend(r),
+                    Err(e) => {
+                        self.prompt.message =
+                            Some(format!("tab complete for {} err : '{}'", cmd, e))
+                    }
+                }
+                v
             }
             Item::Keyword | Item::Command => tab_complete_prog(s),
             Item::Ident => {

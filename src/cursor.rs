@@ -159,7 +159,7 @@ impl Cursor {
         }
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CursorItem {
     pub item: Item,
     pub start: usize,
@@ -190,11 +190,12 @@ pub struct PosFinder {
 impl BackTo for PosFinder {
     fn back(&self, pos: usize) {
         let mut v = self.opens.borrow_mut();
+        //println!("opens = {:?}", v);
         if let Some(n) = v.iter().position(|x| x.start > pos) {
             v.truncate(n);
             if n > 0 {
                 if let Some(f) = v[n - 1].fin {
-                    if f > pos {
+                    if f >= pos {
                         v[n - 1].fin = None;
                     }
                 }
@@ -203,12 +204,13 @@ impl BackTo for PosFinder {
             let l = v.len();
             if l > 0 {
                 if let Some(f) = v[l - 1].fin {
-                    if f > pos {
+                    if f >= pos {
                         v[l - 1].fin = None;
                     }
                 }
             }
         }
+        //println!("popped = {:?}", v);
     }
 }
 
@@ -221,11 +223,17 @@ impl ParseMark for PosFinder {
                 p.start = n;
                 match item {
                     Item::Command | Item::Keyword => {
-                        self.opens.borrow_mut().push(CursorItem {
-                            item,
-                            start: n,
-                            fin: None,
-                        });
+                        let mut v = self.opens.borrow_mut();
+                        match v.last_mut() {
+                            Some(b) if b.start == n => {
+                                b.fin = None;
+                            }
+                            Some(_) | None => v.push(CursorItem {
+                                item,
+                                start: n,
+                                fin: None,
+                            }),
+                        }
                     }
                     Item::Close => {
                         self.opens.borrow_mut().pop();
@@ -246,13 +254,8 @@ impl ParseMark for PosFinder {
 impl PosFinder {
     fn end_command(&self, pos: usize) {
         let mut v = self.opens.borrow_mut();
-        if v.len() == 0 {
-            return;
-        }
-        let l = v.len() - 1;
-        if let Some(i) = v.get_mut(l) {
+        if let Some(i) = v.last_mut() {
             if i.fin == None {
-                //println!("ending {}", pos);
                 i.fin = Some(pos)
             }
         }
@@ -260,14 +263,14 @@ impl PosFinder {
 
     fn last_command(&self) -> CursorItem {
         let v = self.opens.borrow();
-        let l = v.len() - 1;
-        match v.get(l) {
-            Some(i) => i.clone(),
-            None => CursorItem {
+        let l = v.len();
+        if l == 0 {
+            return CursorItem {
                 item: Item::Command,
                 start: 0,
                 fin: Some(0),
-            },
+            };
         }
+        v[l - 1].clone()
     }
 }
