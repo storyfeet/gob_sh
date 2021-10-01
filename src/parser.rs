@@ -85,7 +85,7 @@ parser! {(Statement->Stt)
 }
 
 parser! {(Block->Vec<Stt>)
-    (wn_("{"),star_until(wn_(FullStatement),keyword("}"))).map(|(_,(a,_))|a)
+    (wn_(("{",Empties)),star_until(wn_(FullStatement),keyword("}"))).map(|(_,(a,_))|a)
 }
 
 parser! {(ExprLeft ->Expr)

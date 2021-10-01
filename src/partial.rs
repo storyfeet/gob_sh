@@ -170,7 +170,7 @@ ss_parser! { Statement:ParseMark,
 }
 
 ss_parser! {Block:ParseMark,
-    pl!(Wn,Item::Symbol, "{" ,PStarUntil(pl!(Wn,FullStatement,Wn),(Item::Symbol,"}")))
+    pl!(Wn,Item::Symbol, "{" ,Empties,PStarUntil(pl!(Wn,FullStatement,Wn),(Item::Symbol,"}")))
 }
 
 ss_parser! {ExprLeft:ParseMark,
