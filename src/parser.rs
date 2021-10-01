@@ -26,7 +26,7 @@ parser! {(Ident->String),
 }
 
 parser! {(ArgSpace->()),
-    star(or_ig!(WS.iplus(),"\\\n")).ig()
+    star(or_ig!(WS.iplus(),"\\\n",("#",Comment,"\n"))).ig()
 }
 
 parser! {(Path->String)
@@ -45,10 +45,14 @@ parser! {(End->())
     ws_(or_ig!("\n;".one(),EOI))
 }
 
+parser! {(Comment -> ())
+    ("#",not("\n;").istar()).ig()
+}
+
 parser! {(Empties->())
     star(ws_(or_ig!(
             "\n;".plus(),
-            ("#",not("\n;").star()),
+            Comment,
         ))).ig()
 }
 

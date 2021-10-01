@@ -118,6 +118,14 @@ ss_parser! {Ws:ParseMark,
     (Item::WS," \t".star())
 }
 
+ss_parser! {ArgSpace:ParseMark,
+    PStar(ss_or!(WS.plus(),"\\\n",pl!(Item::Comment,"#",Comment,"\n")))
+}
+
+ss_parser! {Comment:ParseMark,
+    (Item::Comment,"#",not("\n;").star())
+}
+
 ss_parser! {End:ParseMark,
     pl!(Ws,ss_or!("\n;".one(),EOI))
 }
@@ -125,7 +133,7 @@ ss_parser! {End:ParseMark,
 ss_parser! {Empties:ParseMark,
     PStar(ss_or!(
             (" \n\t\r;").plus(),
-            ("#",not("\n;").plus()),
+            Comment,
     ))
 }
 
@@ -191,10 +199,10 @@ ss_parser! {PExec:ParseMark,
 }
 
 ss_parser! {ArgsS :ParseMark,
-    PStar((Ws,ArgP))
+    PStar((ArgSpace,ArgP))
 }
 ss_parser! {ArgsP :ParseMark,
-    PPlus((Ws,Item::Arg,ArgP))
+    PPlus((ArgSpace,Item::Arg,ArgP))
 }
 
 ss_parser! { QuotedLitString:ParseMark,
