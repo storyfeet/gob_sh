@@ -141,6 +141,10 @@ impl Arg {
                     .read_to_string(&mut buf)
                     .ok();
 
+                let b2 = buf.trim_end();
+                let l = b2.len();
+                buf.truncate(l);
+
                 //ch.wait(); TODO work out if this is needed
                 Ok(Data::RawStr(buf))
             }
