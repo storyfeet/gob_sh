@@ -118,3 +118,12 @@ a -- 5
 a -- 6
 ```
 
+
+Changelog
+---------
+
+### v0.1.3
+
+Now allows comments "#" to end a line "##" to continue a line"
+Fix so "\\\n" doesn't insert a new line into output
+
