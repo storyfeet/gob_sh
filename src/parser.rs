@@ -25,6 +25,10 @@ parser! {(Ident->String),
 
 }
 
+parser! {(ArgSpace->()),
+    star(or_ig!(WS.iplus(),"\\\n")).ig()
+}
+
 parser! {(Path->String)
     string((maybe("~"),plus(or_ig!("\\ ",("/.",LetterNum).iplus()))))
 }
@@ -81,7 +85,7 @@ parser! {(Block->Vec<Stt>)
 }
 
 parser! {(ExprLeft ->Expr)
-    (PExec,ws_(maybe((ExChannel,">",exists(">"),ws_(ArgP))))).map(|(exec,wop)|{
+    (PExec,ws_(maybe((ExChannel,ws_(">"),exists(">"),ws_(ArgP))))).map(|(exec,wop)|{
         match wop {
             Some((chan,_,append,filename))=>Expr::Write{exec,chan,append,filename},
             None=>Expr::Exec(exec),
@@ -111,12 +115,14 @@ parser! {(PExec->Exec)
     (Path , ArgsS,maybe(ws_(PConnection))).map(|(command,args,conn)|Exec{command,args,conn})
 }
 
+// At least one Arg
 parser! {(ArgsP->Args)
-    plus(ws_(ArgP)).map(|v|Args(v))
+    plus((ArgSpace,ArgP).last()).map(|v|Args(v))
 }
 
+// The list of args following a program
 parser! {(ArgsS -> Args)
-    star(ws_(ArgP)).map(|v| Args(v))
+    star((ArgSpace,ArgP).last()).map(|v| Args(v))
 }
 
 parser! { (QuotedLitString->String)
@@ -193,4 +199,15 @@ pub fn r_hash<'a>(it: &PIter<'a>) -> ParseRes<'a, String> {
     Any.until(("\"", "#".exact(v.len())))
         .map(|(s, _)| s.to_string())
         .parse(&it)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    pub fn arg_space() {
+        let s = " \\\nfish";
+        let r = (ArgSpace, "f").parse_s(s);
+        assert_eq!(r, Ok(((), "f")));
+    }
 }

@@ -166,7 +166,7 @@ ss_parser! {Block:ParseMark,
 }
 
 ss_parser! {ExprLeft:ParseMark,
-    pl!(PExec,Maybe((Item::Symbol,">",Maybe(">"),Ws,ArgP)))
+    pl!(PExec,Maybe((Item::Symbol,Ws,">",Maybe(">"),Ws,ArgP)))
     //p_list!((Item::Expr) PExec,ws_(pMaybe(p_list!((Item::Command) ExChannel,sym(">"),Maybe(sym(">"),Item::Symbol),ws_(ArgP)),Item::Command)))
 }
 
