@@ -15,8 +15,8 @@ repository ="https://github.com/storyfeet/gob_sh"
 [dependencies]
 bogobble = "0.1.1"
 #bogobble={path="../../mlibs/bogobble/"}
-#transliterate="0.1.0"
-transliterate={path="../../mlibs/transliterate/"}
+transliterate="0.1.1"
+#transliterate={path="../../mlibs/transliterate/"}
 err_tools="0.1.0"
 anyhow = "1.0.34"
 glob = "0.3.0"

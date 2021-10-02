@@ -37,7 +37,7 @@ Here :
 The prompt I normally use
 
 ```text
-let RU_PROMPT= r#"\e1m\e34m${USERNAME,Matt}: :\e32m$(basename $PWD)\e34m>>\e0m"#
+let RU_PROMPT= r#"\e1m\e34m${USERNAME,Matt}: :\e32m$(basename $PWD)\n\e34m>>\e0m"#
 ```
 
 if you have [starship](https://starship.rs/) installed you can use it like this:
@@ -124,6 +124,11 @@ Changelog
 
 ### v0.1.3
 
-Now allows comments "#" to end a line "##" to continue a line"
-Fix so "\\\n" doesn't insert a new line into output
+* Now allows comments "#" to end a line "##" to continue a line"
+* Fix so "\\\n" doesn't insert a new line into output
+* tab complete works for choosing programs with "./" and "/" (TODO limit to executable)
+
+
+
+
 

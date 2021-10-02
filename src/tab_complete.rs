@@ -73,6 +73,9 @@ pub fn tab_complete_prog(s: &str) -> Vec<String> {
             .map(|s| format!("./{}", s))
             .collect();
     }
+    if s.starts_with("/") {
+        return tab_complete_path(s);
+    }
 
     let list: Vec<String> = prog_matches(s).into_iter().collect();
     list
