@@ -67,6 +67,13 @@ pub fn tab_complete_args(s: &str, c: &str, store: &mut Store) -> anyhow::Result<
 }
 
 pub fn tab_complete_prog(s: &str) -> Vec<String> {
+    if s.starts_with("./") {
+        return tab_complete_path(&s[2..])
+            .into_iter()
+            .map(|s| format!("./{}", s))
+            .collect();
+    }
+
     let list: Vec<String> = prog_matches(s).into_iter().collect();
     list
 }
