@@ -48,15 +48,16 @@ impl Exec {
                 .stdout(output)
                 .stderr(errput)
                 .spawn()
-                .map_err(Into::into),
-
+                .e_string(format!("Error running {}", &self.command)),
+            //.map_err(Into::into),
             Some(conn) => {
                 let ch = Command::new(&self.command)
                     .args(self.args.run_s_vec(s, 3)?)
                     .stdin(input)
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
-                    .spawn()?;
+                    .spawn()
+                    .e_string(format!("Error running {}", &self.command))?;
                 conn.run(ch, s, output, errput)
             }
         }
